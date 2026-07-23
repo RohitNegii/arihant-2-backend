@@ -2,9 +2,9 @@ import { Schema, model, Document } from "mongoose";
 
 export interface IUser extends Document {
   name: string;
-  email?: string;
+  email: string;
   password?: string;
-  phone: string;
+  phone?: string;
   role: "customer" | "admin";
   isVerified: boolean;
   verificationToken?: string;
@@ -19,9 +19,9 @@ export interface IUser extends Document {
 const UserSchema = new Schema<IUser>(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, unique: true, index: true, lowercase: true, trim: true, sparse: true },
+    email: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
     password: { type: String },
-    phone: { type: String, required: true, unique: true, index: true, trim: true },
+    phone: { type: String, unique: true, index: true, trim: true, sparse: true },
     role: { type: String, enum: ["customer", "admin"], default: "customer" },
     isVerified: { type: Boolean, default: false },
     verificationToken: { type: String },

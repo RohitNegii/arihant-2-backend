@@ -9,6 +9,7 @@ import { User } from "./models/User";
 import { Cart } from "./models/Cart";
 import { Category } from "./models/Category";
 import { FAQ } from "./models/FAQ";
+import { Product } from "./models/Product";
 import { connectDB } from "./config/db";
 
 const seedAdmin = async () => {
@@ -116,36 +117,38 @@ const seedAdmin = async () => {
     const adminExists = await User.findOne({ email: adminEmail });
     if (adminExists) {
       console.log(`[Seed] Admin user with email '${adminEmail}' already exists.`);
-      process.exit(0);
+    } else {
+      // Generate hashed password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(adminPassword, salt);
+
+      // Create the admin user in the database
+      const adminUser = await User.create({
+        name: "Aurum Administrator",
+        email: adminEmail,
+        password: hashedPassword,
+        phone: adminPhone,
+        role: "admin"
+      });
+
+      // Lazily create cart for admin user
+      await Cart.create({ customer: adminUser._id, items: [] });
+
+      console.log("====================================================");
+      console.log("  SUCCESS: Admin Account Seeded Successfully!");
+      console.log(`  Name:      Aurum Administrator`);
+      console.log(`  Email:     ${adminEmail}`);
+      console.log(`  Password:  ${adminPassword}`);
+      console.log(`  Role:      ${adminUser.role}`);
+      console.log("====================================================");
     }
 
-    // Generate hashed password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(adminPassword, salt);
 
-    // Create the admin user in the database
-    const adminUser = await User.create({
-      name: "Aurum Administrator",
-      email: adminEmail,
-      password: hashedPassword,
-      phone: adminPhone,
-      role: "admin"
-    });
 
-    // Lazily create cart for admin user
-    await Cart.create({ customer: adminUser._id, items: [] });
-
-    console.log("====================================================");
-    console.log("  SUCCESS: Admin Account Seeded Successfully!");
-    console.log(`  Name:      Aurum Administrator`);
-    console.log(`  Email:     ${adminEmail}`);
-    console.log(`  Password:  ${adminPassword}`);
-    console.log(`  Role:      ${adminUser.role}`);
-    console.log("====================================================");
 
     process.exit(0);
   } catch (error) {
-    console.error("[Seed] Error seeding admin user:", error);
+    console.error("[Seed] Error seeding database:", error);
     process.exit(1);
   }
 };

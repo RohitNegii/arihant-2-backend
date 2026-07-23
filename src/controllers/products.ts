@@ -54,22 +54,55 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       query.material = new RegExp(`^${req.query.material}$`, "i");
     }
 
-    if (req.query.stone) {
-      query.stone = new RegExp(`^${req.query.stone}$`, "i");
-    }
-
     if (req.query.gender) {
       query.gender = req.query.gender;
     }
 
     if (req.query.minPrice || req.query.maxPrice) {
-      query.price = {};
-      if (req.query.minPrice) query.price.$gte = parseFloat(req.query.minPrice as string);
-      if (req.query.maxPrice) query.price.$lte = parseFloat(req.query.maxPrice as string);
+      const min = req.query.minPrice ? parseFloat(req.query.minPrice as string) : null;
+      const max = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : null;
+
+      const priceCondition: any = {};
+      const variantPriceCondition: any = {};
+
+      if (min !== null) {
+        priceCondition.$gte = min;
+        variantPriceCondition.$gte = min;
+      }
+      if (max !== null) {
+        priceCondition.$lte = max;
+        variantPriceCondition.$lte = max;
+      }
+
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          {
+            hasVariants: false,
+            price: priceCondition
+          },
+          {
+            hasVariants: true,
+            "variants.price": variantPriceCondition
+          }
+        ]
+      });
     }
 
     if (req.query.availability === "in-stock") {
-      query.stock = { $gt: 0 };
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          {
+            hasVariants: false,
+            stock: { $gt: 0 }
+          },
+          {
+            hasVariants: true,
+            "variants.stock": { $gt: 0 }
+          }
+        ]
+      });
     }
 
     // Sorting
@@ -121,8 +154,7 @@ export const getAdminProducts = async (req: Request, res: Response, next: NextFu
         { sku: searchRegex },
         { description: searchRegex },
         { material: searchRegex },
-        { purity: searchRegex },
-        { stone: searchRegex }
+        { purity: searchRegex }
       ];
     }
 
@@ -135,10 +167,21 @@ export const getAdminProducts = async (req: Request, res: Response, next: NextFu
     }
 
     if (stockStatus) {
+      filter.$and = filter.$and || [];
       if (stockStatus === "in-stock") {
-        filter.stock = { $gt: 0 };
+        filter.$and.push({
+          $or: [
+            { hasVariants: false, stock: { $gt: 0 } },
+            { hasVariants: true, "variants.stock": { $gt: 0 } }
+          ]
+        });
       } else if (stockStatus === "out-of-stock") {
-        filter.stock = 0;
+        filter.$and.push({
+          $or: [
+            { hasVariants: false, stock: 0 },
+            { hasVariants: true, "variants.stock": { $not: { $gt: 0 } } }
+          ]
+        });
       }
     }
 
@@ -202,12 +245,22 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const {
       name, sku, description, shortDescription, categoryId,
-      material, purity, stone, weight, dimensions, gender, occasion,
+      material, purity, weight, dimensions, gender, occasion,
       price, stock, status, isFeatured, isTrending, isBestSeller,
-      images, thumbnail, sizes, allowCustomSize
+      images, thumbnail, sizes, allowCustomSize,
+      hasVariants, variants
     } = req.body;
 
-    if (!name || !sku || !price || !categoryId || !material || !purity || !stone || weight === undefined) {
+    const isPriceRequired = !hasVariants;
+    if (
+      !name ||
+      !sku ||
+      (isPriceRequired && (price === undefined || price === null)) ||
+      !categoryId ||
+      !material ||
+      !purity ||
+      weight === undefined
+    ) {
       return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
@@ -226,13 +279,12 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       category: categoryId,
       material,
       purity,
-      stone,
       weight,
       dimensions: dimensions || "",
       gender: gender || "Unisex",
       occasion: occasion || "",
-      price,
-      stock: stock || 0,
+      price: hasVariants ? undefined : price,
+      stock: hasVariants ? 0 : (stock || 0),
       status: status || "Draft",
       isFeatured: !!isFeatured,
       isTrending: !!isTrending,
@@ -240,7 +292,9 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       images: images || [],
       thumbnail: thumbnail || "",
       sizes: sizes || [],
-      allowCustomSize: !!allowCustomSize
+      allowCustomSize: !!allowCustomSize,
+      hasVariants: !!hasVariants,
+      variants: variants || []
     });
 
     return res.status(201).json({ success: true, product });
@@ -278,9 +332,10 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const {
       name, sku, description, shortDescription, categoryId,
-      material, purity, stone, weight, dimensions, gender, occasion,
+      material, purity, weight, dimensions, gender, occasion,
       price, stock, status, isFeatured, isTrending, isBestSeller,
-      images, thumbnail, sizes, allowCustomSize
+      images, thumbnail, sizes, allowCustomSize,
+      hasVariants, variants
     } = req.body;
 
     const product = await Product.findById(req.params.id);
@@ -298,7 +353,6 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     if (categoryId) product.category = categoryId;
     if (material !== undefined) product.material = material;
     if (purity !== undefined) product.purity = purity;
-    if (stone !== undefined) product.stone = stone;
     if (weight !== undefined) product.weight = weight;
     if (dimensions !== undefined) product.dimensions = dimensions;
     if (gender !== undefined) product.gender = gender;
@@ -311,6 +365,14 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     if (isBestSeller !== undefined) product.isBestSeller = !!isBestSeller;
     if (sizes !== undefined) product.sizes = sizes;
     if (allowCustomSize !== undefined) product.allowCustomSize = !!allowCustomSize;
+    if (hasVariants !== undefined) {
+      product.hasVariants = !!hasVariants;
+      if (hasVariants) {
+        product.price = undefined;
+        product.stock = 0;
+      }
+    }
+    if (variants !== undefined) product.variants = variants;
 
     // Handle Image Delete triggers if images lists are updated
     if (images) {

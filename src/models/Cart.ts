@@ -4,6 +4,7 @@ export interface ICartItem {
   product: Schema.Types.ObjectId;
   quantity: number;
   size?: string;
+  variant?: string;
 }
 
 export interface ICart extends Document {
@@ -16,7 +17,8 @@ export interface ICart extends Document {
 const CartItemSchema = new Schema<ICartItem>({
   product: { type: Schema.Types.ObjectId, ref: "Product", required: true },
   quantity: { type: Number, required: true, default: 1, min: 1 },
-  size: { type: String }
+  size: { type: String },
+  variant: { type: String }
 }, { _id: false });
 
 const CartSchema = new Schema<ICart>(

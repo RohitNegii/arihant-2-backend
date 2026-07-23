@@ -8,6 +8,13 @@ export interface IReview {
   createdAt: Date;
 }
 
+export interface IVariant {
+  name: string;
+  price: number;
+  stock: number;
+  sku?: string;
+}
+
 export interface IProduct extends Document {
   name: string;
   slug: string;
@@ -17,13 +24,12 @@ export interface IProduct extends Document {
   category: Schema.Types.ObjectId;
   material: string;
   purity: string;
-  stone: string;
   weight: number;
   dimensions?: string;
   gender: "Men" | "Women" | "Unisex";
   occasion?: string;
-  price: number;
-  stock: number;
+  price?: number;
+  stock?: number;
   status: "Draft" | "Published";
   isFeatured: boolean;
   isTrending: boolean;
@@ -33,6 +39,8 @@ export interface IProduct extends Document {
   isDeleted: boolean;
   sizes?: string[];
   allowCustomSize?: boolean;
+  hasVariants?: boolean;
+  variants?: IVariant[];
   reviews?: IReview[];
   createdAt: Date;
   updatedAt: Date;
@@ -56,13 +64,12 @@ const ProductSchema = new Schema<IProduct>(
     category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
     material: { type: String, required: true, trim: true },
     purity: { type: String, required: true, trim: true },
-    stone: { type: String, required: true, trim: true },
     weight: { type: Number, required: true },
     dimensions: { type: String, default: "" },
     gender: { type: String, enum: ["Men", "Women", "Unisex"], default: "Unisex" },
     occasion: { type: String, default: "" },
-    price: { type: Number, required: true, min: 0 },
-    stock: { type: Number, required: true, default: 0, min: 0 },
+    price: { type: Number, required: function(this: any) { return !this.hasVariants; }, min: 0 },
+    stock: { type: Number, required: function(this: any) { return !this.hasVariants; }, default: 0, min: 0 },
     status: { type: String, enum: ["Draft", "Published"], default: "Draft" },
     isFeatured: { type: Boolean, default: false },
     isTrending: { type: Boolean, default: false },
@@ -72,6 +79,18 @@ const ProductSchema = new Schema<IProduct>(
     isDeleted: { type: Boolean, default: false },
     sizes: { type: [String], default: [] },
     allowCustomSize: { type: Boolean, default: false },
+    hasVariants: { type: Boolean, default: false },
+    variants: {
+      type: [
+        {
+          name: { type: String, required: true, trim: true },
+          price: { type: Number, required: true, min: 0 },
+          stock: { type: Number, required: true, default: 0, min: 0 },
+          sku: { type: String, uppercase: true, trim: true }
+        }
+      ],
+      default: []
+    },
     reviews: { type: [ReviewSchema], default: [] }
   },
   { timestamps: true }

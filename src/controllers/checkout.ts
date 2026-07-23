@@ -7,6 +7,7 @@ import { Payment } from "../models/Payment";
 import { User } from "../models/User";
 import { encrypt, decrypt } from "../services/ccavenue";
 import { notificationService } from "../services/notification";
+import { emailService } from "../services/email";
 
 // Helper to generate unique order numbers
 const generateOrderNumber = () => {
@@ -52,23 +53,47 @@ export const createCheckoutOrder = async (
         return res.status(404).json({ success: false, message: `Product is no longer available` });
       }
 
-      if (product.stock < item.quantity) {
+      let price = product.price;
+      let stock = product.stock;
+      const selectedVariantName = item.variant;
+
+      if (product.hasVariants && selectedVariantName) {
+        const variant = product.variants?.find(
+          (v: any) => v.name.toLowerCase() === selectedVariantName.toLowerCase()
+        );
+        if (variant) {
+          price = variant.price;
+          stock = variant.stock;
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: `Selected variant '${selectedVariantName}' is invalid for product: ${product.name}`
+          });
+        }
+      } else if (product.hasVariants && !selectedVariantName) {
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for product: ${product.name}. Only ${product.stock} units available.`
+          message: `Variant selection is required for product: ${product.name}`
         });
       }
 
-      const price = product.price;
-      subtotal += price * item.quantity;
+      if (stock === undefined || stock === null || stock < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for product: ${product.name}${selectedVariantName ? ` (${selectedVariantName})` : ""}. Only ${stock ?? 0} units available.`
+        });
+      }
+
+      subtotal += (price || 0) * item.quantity;
 
       verifiedItems.push({
         product: product._id,
-        name: product.name,
-        price: price,
+        name: selectedVariantName ? `${product.name} (${selectedVariantName})` : product.name,
+        price: price || 0,
         quantity: item.quantity,
         image: product.thumbnail || product.images[0] || "",
-        size: item.size
+        size: item.size,
+        variant: selectedVariantName || undefined
       });
     }
 
@@ -79,6 +104,11 @@ export const createCheckoutOrder = async (
     const grandTotal = subtotal - discountAmount + taxAmount + shippingAmount;
 
     const orderNumber = generateOrderNumber();
+
+    // Update user's phone number if it's not set
+    if (req.user && !req.user.phone && shippingAddress.phone) {
+      await User.findByIdAndUpdate(req.user._id, { phone: shippingAddress.phone });
+    }
 
     // Save Order in database under Pending status
     const order = await Order.create({
@@ -245,21 +275,45 @@ export const handleCCAvenueResponse = async (
         });
         await order.save();
 
-        // Deduct stock from products
+        // Deduct stock from products/variants
         for (const item of order.items) {
-          await Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.quantity } });
+          const product = await Product.findById(item.product);
+          if (product) {
+            const selectedVariantName = item.variant;
+            if (product.hasVariants && selectedVariantName) {
+              const variant = product.variants?.find(
+                (v: any) => v.name.toLowerCase() === selectedVariantName.toLowerCase()
+              );
+              if (variant) {
+                variant.stock = Math.max(0, variant.stock - item.quantity);
+                product.markModified("variants");
+              }
+            } else {
+              product.stock = Math.max(0, (product.stock || 0) - item.quantity);
+            }
+            await product.save();
+          }
         }
 
         // Empty User's Cart
         await Cart.findOneAndUpdate({ customer: order.customer }, { $set: { items: [] } });
 
-        // Send WhatsApp confirmation
+        // Send WhatsApp and Email confirmations
         const user = await User.findById(order.customer);
-        if (user && user.phone) {
-          try {
-            await notificationService.sendWhatsAppConfirmation(user.phone, order.orderNumber, order.grandTotal);
-          } catch (err) {
-            // Ignored
+        if (user) {
+          if (user.phone) {
+            try {
+              await notificationService.sendWhatsAppConfirmation(user.phone, order.orderNumber, order.grandTotal);
+            } catch (err) {
+              // Ignored
+            }
+          }
+          if (user.email) {
+            try {
+              await emailService.sendOrderConfirmation(user.email, order);
+            } catch (err) {
+              console.error(`[Checkout] Failed to send order confirmation email:`, err);
+            }
           }
         }
       }

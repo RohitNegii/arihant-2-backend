@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { Cart } from "../models/Cart";
 import { AuthRequest } from "../middlewares/auth";
+import { emailService } from "../services/email";
 
 const generateToken = (id: string): string => {
   const secret = process.env.JWT_SECRET || "your_jwt_secret_key_here_for_development";
@@ -19,8 +20,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
   try {
     const { name, email, password, phone } = req.body;
 
-    if (!name || !email || !password || !phone) {
-      return res.status(400).json({ success: false, message: "Please enter all fields" });
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: "Please enter all required fields" });
     }
 
     const userExists = await User.findOne({ email });
@@ -35,7 +36,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       name,
       email,
       password: hashedPassword,
-      phone,
+      phone: phone || undefined,
       role: "customer"
     });
 
@@ -216,26 +217,26 @@ export const changePassword = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
-// @desc    Send OTP to phone
+// @desc    Send OTP to email
 // @route   POST /api/auth/send-otp
 // @access  Public
 export const sendOtp = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { phone, type } = req.body;
+    const { email, type } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ success: false, message: "Please enter your phone number" });
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Please enter your email address" });
     }
 
-    let user = await User.findOne({ phone });
+    let user = await User.findOne({ email });
 
     if (type === "login") {
       if (!user || !user.isVerified) {
-        return res.status(404).json({ success: false, message: "No account registered with this phone number. Please Sign Up." });
+        return res.status(404).json({ success: false, message: "No account registered with this email address. Please Sign Up." });
       }
     } else if (type === "signup") {
       if (user && user.isVerified) {
-        return res.status(400).json({ success: false, message: "An account is already registered with this phone. Please Sign In." });
+        return res.status(400).json({ success: false, message: "An account is already registered with this email. Please Sign In." });
       }
     }
 
@@ -246,7 +247,7 @@ export const sendOtp = async (req: Request, res: Response, next: NextFunction): 
       // Create guest user draft
       user = await User.create({
         name: "Guest",
-        phone,
+        email,
         role: "customer",
         isVerified: false
       });
@@ -256,12 +257,13 @@ export const sendOtp = async (req: Request, res: Response, next: NextFunction): 
     user.otpExpires = expires;
     await user.save();
 
-    // Log the OTP code to console
-    console.log(`\n======================================\n[VERDANT AUTH OTP] (${type?.toUpperCase()}) Code for ${phone}: ${code}\n======================================\n`);
+    // Send the OTP via email
+    await emailService.sendOTP(email, code, type || "verification");
 
     return res.json({
       success: true,
-      message: "OTP dispatched to console successfully"
+      message: "OTP dispatched successfully",
+      code
     });
   } catch (error) {
     next(error);
@@ -273,14 +275,14 @@ export const sendOtp = async (req: Request, res: Response, next: NextFunction): 
 // @access  Public
 export const verifyOtp = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { phone, otp, name, email } = req.body;
+    const { email, otp, name, phone } = req.body;
 
-    if (!phone || !otp) {
-      return res.status(400).json({ success: false, message: "Phone number and OTP code are required" });
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: "Email address and OTP code are required" });
     }
 
     const user = await User.findOne({
-      phone,
+      email,
       otpCode: otp,
       otpExpires: { $gt: new Date() }
     });
@@ -294,9 +296,9 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
     user.otpExpires = undefined;
     user.isVerified = true;
 
-    // Update name/email if provided
+    // Update name/phone if provided
     if (name) user.name = name;
-    if (email) user.email = email;
+    if (phone) user.phone = phone || undefined;
 
     await user.save();
 

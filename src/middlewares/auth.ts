@@ -26,7 +26,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
-      return res.status(404).json({ success: false, message: "No user found with this id" });
+      return res.status(401).json({ success: false, message: "No user found with this id" });
     }
 
     req.user = user;

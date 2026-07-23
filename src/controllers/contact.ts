@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { Contact } from "../models/Contact";
+import { emailService } from "../services/email";
+
 
 // Helper regex to validate email address format
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -52,6 +54,13 @@ export const createContactInquiry = async (req: Request, res: Response, next: Ne
       subject: subject.trim(),
       message: message.trim()
     });
+
+    // Send contact notification to admin
+    try {
+      await emailService.sendContactInquiryNotification(contact);
+    } catch (err) {
+      console.error(`[Contact] Failed to send contact inquiry notification:`, err);
+    }
 
     return res.status(201).json({
       success: true,

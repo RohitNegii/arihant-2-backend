@@ -10,7 +10,7 @@ export const getCart = async (req: AuthRequest, res: Response, next: NextFunctio
   try {
     let cart = await Cart.findOne({ customer: req.user?._id }).populate({
       path: "items.product",
-      select: "name price stock images thumbnail slug sku status isDeleted sizes allowCustomSize"
+      select: "name price stock images thumbnail slug sku status isDeleted sizes allowCustomSize hasVariants variants"
     });
 
     if (!cart) {
@@ -33,7 +33,7 @@ export const getCart = async (req: AuthRequest, res: Response, next: NextFunctio
 // @access  Private
 export const addToCart = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { productId, quantity, size } = req.body;
+    const { productId, quantity, size, variant } = req.body;
     const qty = parseInt(quantity) || 1;
 
     if (!productId) {
@@ -64,16 +64,33 @@ export const addToCart = async (req: AuthRequest, res: Response, next: NextFunct
       selectedSize = "";
     }
 
+    // Variant Validation
+    let selectedVariant = variant ? String(variant).trim() : "";
+    if (product.hasVariants) {
+      if (!selectedVariant) {
+        return res.status(400).json({ success: false, message: "Variant selection is required for this product" });
+      }
+      const isVal = product.variants?.some(
+        (v) => v.name.toLowerCase() === selectedVariant.toLowerCase()
+      );
+      if (!isVal) {
+        return res.status(400).json({ success: false, message: `Selected variant '${selectedVariant}' is invalid` });
+      }
+    } else {
+      selectedVariant = "";
+    }
+
     let cart = await Cart.findOne({ customer: req.user?._id });
     if (!cart) {
       cart = await Cart.create({ customer: req.user?._id, items: [] });
     }
 
-    // Find item with same product ID and size
+    // Find item with same product ID, size, and variant
     const itemIndex = cart.items.findIndex(
       (item) =>
         item.product.toString() === productId &&
-        (item.size === selectedSize || (!item.size && !selectedSize))
+        (item.size === selectedSize || (!item.size && !selectedSize)) &&
+        (item.variant === selectedVariant || (!item.variant && !selectedVariant))
     );
 
     if (itemIndex > -1) {
@@ -81,14 +98,19 @@ export const addToCart = async (req: AuthRequest, res: Response, next: NextFunct
       cart.items[itemIndex].quantity += qty;
     } else {
       // Add new item
-      cart.items.push({ product: productId as any, quantity: qty, size: selectedSize || undefined });
+      cart.items.push({
+        product: productId as any,
+        quantity: qty,
+        size: selectedSize || undefined,
+        variant: selectedVariant || undefined
+      });
     }
 
     await cart.save();
     
     const populatedCart = await cart.populate({
       path: "items.product",
-      select: "name price stock images thumbnail slug sku sizes allowCustomSize"
+      select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
     return res.json({ success: true, items: populatedCart.items });
@@ -102,9 +124,10 @@ export const addToCart = async (req: AuthRequest, res: Response, next: NextFunct
 // @access  Private
 export const updateCartQuantity = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { productId, quantity, size } = req.body;
+    const { productId, quantity, size, variant } = req.body;
     const qty = parseInt(quantity);
     const selectedSize = size ? String(size).trim() : "";
+    const selectedVariant = variant ? String(variant).trim() : "";
 
     if (!productId || qty === undefined || qty < 1) {
       return res.status(400).json({ success: false, message: "Invalid product or quantity" });
@@ -118,7 +141,8 @@ export const updateCartQuantity = async (req: AuthRequest, res: Response, next: 
     const itemIndex = cart.items.findIndex(
       (item) =>
         item.product.toString() === productId &&
-        (item.size === selectedSize || (!item.size && !selectedSize))
+        (item.size === selectedSize || (!item.size && !selectedSize)) &&
+        (item.variant === selectedVariant || (!item.variant && !selectedVariant))
     );
 
     if (itemIndex > -1) {
@@ -130,7 +154,7 @@ export const updateCartQuantity = async (req: AuthRequest, res: Response, next: 
 
     const populatedCart = await cart.populate({
       path: "items.product",
-      select: "name price stock images thumbnail slug sku sizes allowCustomSize"
+      select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
     return res.json({ success: true, items: populatedCart.items });
@@ -144,8 +168,9 @@ export const updateCartQuantity = async (req: AuthRequest, res: Response, next: 
 // @access  Private
 export const removeFromCart = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { size } = req.query;
+    const { size, variant } = req.query;
     const selectedSize = size ? String(size).trim() : "";
+    const selectedVariant = variant ? String(variant).trim() : "";
 
     const cart = await Cart.findOne({ customer: req.user?._id });
     if (!cart) {
@@ -156,14 +181,15 @@ export const removeFromCart = async (req: AuthRequest, res: Response, next: Next
       (item) =>
         !(
           item.product.toString() === req.params.productId &&
-          (item.size === selectedSize || (!item.size && !selectedSize))
+          (item.size === selectedSize || (!item.size && !selectedSize)) &&
+          (item.variant === selectedVariant || (!item.variant && !selectedVariant))
         )
     );
     await cart.save();
 
     const populatedCart = await cart.populate({
       path: "items.product",
-      select: "name price stock images thumbnail slug sku sizes allowCustomSize"
+      select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
     return res.json({ success: true, items: populatedCart.items });
