@@ -5,7 +5,7 @@ const smtpPort = parseInt(process.env.SMTP_PORT || "2525", 10);
 const smtpUser = process.env.SMTP_USER || "";
 const smtpPass = process.env.SMTP_PASS || "";
 const smtpSecure = process.env.SMTP_SECURE === "true";
-const emailFrom = process.env.EMAIL_FROM || '"AURUM Luxury Jewelry" <noreply@aurumjewelry.com>';
+const emailFrom = process.env.EMAIL_FROM || '"Geetej Viraasat" <noreply@geetejviraasat.com>';
 const adminEmail = process.env.ADMIN_EMAIL || "admin@yopmail.com";
 
 let transporter: nodemailer.Transporter | null = null;
@@ -91,7 +91,7 @@ export class EmailService {
    */
   async sendOTP(email: string, code: string, type: string = "Verification"): Promise<boolean> {
     const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
-    const subject = `[AURUM] ${capitalizedType} Code: ${code}`;
+    const subject = `[GEETEJ VIRAASAT] ${capitalizedType} Code: ${code}`;
     
     const html = `
       <!DOCTYPE html>
@@ -99,7 +99,7 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AURUM Luxury Jewelry - Verification Code</title>
+        <title>Geetej Viraasat - Verification Code</title>
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
           body { font-family: 'Montserrat', Arial, sans-serif; background-color: #FAF7F2; margin: 0; padding: 0; color: #0F4C3A; -webkit-font-smoothing: antialiased; }
@@ -124,13 +124,13 @@ export class EmailService {
         <div class="wrapper">
           <div class="container">
             <div class="header">
-              <h1 class="logo">AURUM</h1>
-              <div class="logo-sub">Luxury Jewelry</div>
+              <h1 class="logo">GEETEJ VIRAASAT</h1>
+              <div class="logo-sub">Heritage & Fine Jewelry</div>
             </div>
             <div class="content">
               <h2 class="title">${capitalizedType} Code</h2>
               <p class="description">
-                Thank you for choosing AURUM. Please use the secure verification code below to complete your registration or login verification process. This code is valid for 5 minutes.
+                Thank you for choosing Geetej Viraasat. Please use the secure verification code below to complete your registration or login verification process. This code is valid for 5 minutes.
               </p>
               <div class="code-container">
                 <div class="code">${code}</div>
@@ -139,8 +139,8 @@ export class EmailService {
               <div class="divider"></div>
             </div>
             <div class="footer">
-              <p>&copy; ${new Date().getFullYear()} AURUM Luxury Jewelry. All rights reserved.</p>
-              <p>Support: <a href="mailto:support@aurumjewelry.com">support@aurumjewelry.com</a></p>
+              <p>&copy; ${new Date().getFullYear()} Geetej Viraasat. All rights reserved.</p>
+              <p>Support: <a href="mailto:support@geetejviraasat.com">support@geetejviraasat.com</a></p>
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@ export class EmailService {
    * Send order confirmation email to customer.
    */
   async sendOrderConfirmation(email: string, order: any): Promise<boolean> {
-    const subject = `Your AURUM Order #${order.orderNumber} is Confirmed`;
+    const subject = `Your Geetej Viraasat Order #${order.orderNumber} is Confirmed`;
 
     const itemsHtml = order.items.map((item: any) => `
       <tr>
@@ -188,7 +188,7 @@ export class EmailService {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AURUM Luxury Jewelry - Order Confirmation</title>
+        <title>Geetej Viraasat - Order Confirmation</title>
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
           body { font-family: 'Montserrat', Arial, sans-serif; background-color: #FAF7F2; margin: 0; padding: 0; color: #0F4C3A; -webkit-font-smoothing: antialiased; }
@@ -218,12 +218,12 @@ export class EmailService {
         <div class="wrapper">
           <div class="container">
             <div class="header">
-              <h1 class="logo">AURUM</h1>
-              <div class="logo-sub">Luxury Jewelry</div>
+              <h1 class="logo">GEETEJ VIRAASAT</h1>
+              <div class="logo-sub">Heritage & Fine Jewelry</div>
             </div>
             <div class="content">
               <div class="thankyou">Order Confirmed</div>
-              <div class="subheading">Thank you for your purchase from AURUM Luxury Jewelry. Your order <strong>#${order.orderNumber}</strong> has been successfully placed. We are preparing it for shipment.</div>
+              <div class="subheading">Thank you for your purchase from Geetej Viraasat. Your order <strong>#${order.orderNumber}</strong> has been successfully placed. We are preparing it for shipment.</div>
 
               <h3 class="section-title">Order Items</h3>
               <table class="order-details-table">
@@ -275,7 +275,7 @@ export class EmailService {
             <div class="footer">
               <p>We will email you the tracking details as soon as your items ship.</p>
               <p>If you have any questions, please contact support. Do not reply directly to this email.</p>
-              <p style="margin-top: 15px;">&copy; ${new Date().getFullYear()} AURUM Luxury Jewelry. All rights reserved.</p>
+              <p style="margin-top: 15px;">&copy; ${new Date().getFullYear()} Geetej Viraasat. All rights reserved.</p>
             </div>
           </div>
         </div>

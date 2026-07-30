@@ -109,9 +109,9 @@ const seedAdmin = async () => {
       }
     }
 
-    const adminEmail = "admin@yopmail.com";
+    const adminEmail = "adminn@yopmail.com";
     const adminPassword = "Admin@123";
-    const adminPhone = "9999999999";
+    const adminPhone = "999999999";
 
     // Check if user already exists with this email
     const adminExists = await User.findOne({ email: adminEmail });
@@ -124,7 +124,7 @@ const seedAdmin = async () => {
 
       // Create the admin user in the database
       const adminUser = await User.create({
-        name: "Aurum Administrator",
+        name: "Geetej Viraasat Administrator",
         email: adminEmail,
         password: hashedPassword,
         phone: adminPhone,
@@ -136,7 +136,7 @@ const seedAdmin = async () => {
 
       console.log("====================================================");
       console.log("  SUCCESS: Admin Account Seeded Successfully!");
-      console.log(`  Name:      Aurum Administrator`);
+      console.log(`  Name:      Geetej Viraasat Administrator`);
       console.log(`  Email:     ${adminEmail}`);
       console.log(`  Password:  ${adminPassword}`);
       console.log(`  Role:      ${adminUser.role}`);

@@ -97,9 +97,9 @@ export const createCheckoutOrder = async (
       });
     }
 
-    // Calculate tax (3% GST standard for jewelry) and shipping (₹250 flat, free above ₹15,000)
+    // Prices already include GST, so taxAmount is 0. Shipping is ₹250 flat, free above ₹15,000.
     const discountAmount = 0; // Placeholder for coupon features
-    const taxAmount = Math.round(subtotal * 0.03);
+    const taxAmount = 0;
     const shippingAmount = subtotal > 15000 ? 0 : 250;
     const grandTotal = subtotal - discountAmount + taxAmount + shippingAmount;
 
