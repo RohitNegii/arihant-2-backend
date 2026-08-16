@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { Product } from "../models/Product";
+import { Setting } from "../models/Setting";
 import { Category } from "../models/Category";
 import { Order } from "../models/Order";
 import { AuthRequest } from "../middlewares/auth";
@@ -15,6 +16,37 @@ const slugify = (text: string) => {
     .replace(/\-\-+/g, "-")
     .replace(/^-+/, "")
     .replace(/-+$/, "");
+};
+
+// Helper to apply global discount to a product object
+export const applyDiscountToProduct = (productObj: any, discount: { percentage: number; enabled: boolean }) => {
+  if (!productObj) return productObj;
+  
+  if (!discount || !discount.enabled || discount.percentage <= 0) {
+    // If no discount is active, discountPrice should not be populated
+    return productObj;
+  }
+  
+  const discountRate = (100 - discount.percentage) / 100;
+  
+  if (productObj.hasVariants && productObj.variants) {
+    productObj.variants = productObj.variants.map((v: any) => ({
+      ...v,
+      discountPrice: Math.round(v.price * discountRate)
+    }));
+    
+    // Set product.discountPrice to the minimum variant discountPrice
+    if (productObj.variants.length > 0) {
+      const discountPrices = productObj.variants.map((v: any) => v.discountPrice).filter((p: any) => p !== undefined);
+      if (discountPrices.length > 0) {
+        productObj.discountPrice = Math.min(...discountPrices);
+      }
+    }
+  } else if (productObj.price !== undefined && productObj.price !== null) {
+    productObj.discountPrice = Math.round(productObj.price * discountRate);
+  }
+  
+  return productObj;
 };
 
 // @desc    Get public catalog products with sorting, filtering, searching and pagination
@@ -127,12 +159,16 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       .skip(skip)
       .limit(limit);
 
+    const discountSetting = await Setting.findOne({ key: "discount" });
+    const discount = discountSetting?.value || { percentage: 0, enabled: false };
+    const productsWithDiscount = products.map((p) => applyDiscountToProduct(p.toObject(), discount));
+
     return res.json({
       success: true,
       page,
       pages: Math.ceil(total / limit),
       count: total,
-      products
+      products: productsWithDiscount
     });
   } catch (error) {
     next(error);
@@ -207,7 +243,11 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    return res.json({ success: true, product });
+    const discountSetting = await Setting.findOne({ key: "discount" });
+    const discount = discountSetting?.value || { percentage: 0, enabled: false };
+    const productWithDiscount = applyDiscountToProduct(product.toObject(), discount);
+
+    return res.json({ success: true, product: productWithDiscount });
   } catch (error) {
     next(error);
   }
@@ -232,7 +272,11 @@ export const getRelatedProducts = async (req: Request, res: Response, next: Next
       .limit(4)
       .populate("category", "name slug");
 
-    return res.json({ success: true, products: related });
+    const discountSetting = await Setting.findOne({ key: "discount" });
+    const discount = discountSetting?.value || { percentage: 0, enabled: false };
+    const relatedWithDiscount = related.map((p) => applyDiscountToProduct(p.toObject(), discount));
+
+    return res.json({ success: true, products: relatedWithDiscount });
   } catch (error) {
     next(error);
   }

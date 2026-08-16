@@ -7,6 +7,7 @@ export interface IUser extends Document {
   phone?: string;
   role: "customer" | "admin";
   isVerified: boolean;
+  isBlocked: boolean;
   verificationToken?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
@@ -21,9 +22,10 @@ const UserSchema = new Schema<IUser>(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
     password: { type: String },
-    phone: { type: String, unique: true, index: true, trim: true, sparse: true },
+    phone: { type: String, index: true, trim: true, sparse: true },
     role: { type: String, enum: ["customer", "admin"], default: "customer" },
     isVerified: { type: Boolean, default: false },
+    isBlocked: { type: Boolean, default: false },
     verificationToken: { type: String },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },

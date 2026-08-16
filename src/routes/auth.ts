@@ -10,7 +10,7 @@ import {
   sendOtp,
   verifyOtp,
   getUsers,
-  deleteUser
+  toggleBlockUser
 } from "../controllers/auth";
 
 const router = Router();
@@ -60,9 +60,9 @@ router.post("/change-password", protect, changePassword);
 // @access  Private/Admin
 router.get("/users", protect, adminOnly, getUsers);
 
-// @desc    Delete user
-// @route   DELETE /api/auth/users/:id
+// @desc    Toggle block status of a user
+// @route   PUT /api/auth/users/:id/toggle-block
 // @access  Private/Admin
-router.delete("/users/:id", protect, adminOnly, deleteUser);
+router.put("/users/:id/toggle-block", protect, adminOnly, toggleBlockUser);
 
 export default router;

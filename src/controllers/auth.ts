@@ -77,6 +77,10 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       return res.status(401).json({ success: false, message: "Invalid email or password" });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({ success: false, message: "Your account has been blocked. Please contact support." });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch) {
       return res.status(401).json({ success: false, message: "Invalid email or password" });
@@ -230,6 +234,10 @@ export const sendOtp = async (req: Request, res: Response, next: NextFunction): 
 
     let user = await User.findOne({ email });
 
+    if (user && user.isBlocked) {
+      return res.status(403).json({ success: false, message: "Your account has been blocked. Please contact support." });
+    }
+
     if (type === "login") {
       if (!user || !user.isVerified) {
         return res.status(404).json({ success: false, message: "No account registered with this email address. Please Sign Up." });
@@ -291,6 +299,10 @@ export const verifyOtp = async (req: Request, res: Response, next: NextFunction)
       return res.status(400).json({ success: false, message: "Invalid or expired OTP code" });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({ success: false, message: "Your account has been blocked. Please contact support." });
+    }
+
     // Clear OTP fields & set verified
     user.otpCode = undefined;
     user.otpExpires = undefined;
@@ -338,16 +350,30 @@ export const getUsers = async (req: AuthRequest, res: Response, next: NextFuncti
   }
 };
 
-// @desc    Delete user
-// @route   DELETE /api/auth/users/:id
+// @desc    Toggle user block status
+// @route   PUT /api/auth/users/:id/toggle-block
 // @access  Private/Admin
-export const deleteUser = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
+export const toggleBlockUser = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    return res.json({ success: true, message: "User deleted successfully" });
+
+    // Toggle the blocked state
+    user.isBlocked = !user.isBlocked;
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: `User account has been ${user.isBlocked ? "blocked" : "unblocked"} successfully.`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isBlocked: user.isBlocked
+      }
+    });
   } catch (error) {
     next(error);
   }

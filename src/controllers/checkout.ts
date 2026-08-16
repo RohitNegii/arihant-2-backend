@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth";
 import { Cart } from "../models/Cart";
 import { Product } from "../models/Product";
+import { Setting } from "../models/Setting";
 import { Order, IOrderItem } from "../models/Order";
 import { Payment } from "../models/Payment";
 import { User } from "../models/User";
@@ -25,7 +26,7 @@ export const createCheckoutOrder = async (
   next: NextFunction
 ): Promise<any> => {
   try {
-    const { shippingAddress, billingAddress } = req.body;
+    const { shippingAddress, billingAddress, email, secondaryEmail } = req.body;
 
     if (!shippingAddress) {
       return res.status(400).json({ success: false, message: "Shipping address is required" });
@@ -43,8 +44,16 @@ export const createCheckoutOrder = async (
       return res.status(400).json({ success: false, message: "Your shopping bag is empty" });
     }
 
+    // Fetch global discount settings
+    const discountSetting = await Setting.findOne({ key: "discount" });
+    const discount = discountSetting?.value || { percentage: 0, enabled: false };
+    const discountRate = (discount && discount.enabled && discount.percentage > 0)
+      ? (100 - discount.percentage) / 100
+      : 1;
+
     // Verify products and calculate subtotal
-    let subtotal = 0;
+    let originalSubtotal = 0;
+    let discountedSubtotal = 0;
     const verifiedItems: IOrderItem[] = [];
 
     for (const item of cart.items) {
@@ -84,12 +93,17 @@ export const createCheckoutOrder = async (
         });
       }
 
-      subtotal += (price || 0) * item.quantity;
+      const originalItemTotal = (price || 0) * item.quantity;
+      const purchasePrice = Math.round((price || 0) * discountRate);
+      const discountedItemTotal = purchasePrice * item.quantity;
+
+      originalSubtotal += originalItemTotal;
+      discountedSubtotal += discountedItemTotal;
 
       verifiedItems.push({
         product: product._id,
         name: selectedVariantName ? `${product.name} (${selectedVariantName})` : product.name,
-        price: price || 0,
+        price: purchasePrice, // Purchase price is the discounted price
         quantity: item.quantity,
         image: product.thumbnail || product.images[0] || "",
         size: item.size,
@@ -97,26 +111,24 @@ export const createCheckoutOrder = async (
       });
     }
 
-    // Prices already include GST, so taxAmount is 0. Shipping is ₹250 flat, free above ₹15,000.
-    const discountAmount = 0; // Placeholder for coupon features
+    const subtotal = originalSubtotal;
+    const discountAmount = originalSubtotal - discountedSubtotal;
     const taxAmount = 0;
-    const shippingAmount = subtotal > 15000 ? 0 : 250;
-    const grandTotal = subtotal - discountAmount + taxAmount + shippingAmount;
+    // Shipping is completely free
+    const shippingAmount = 0;
+    const grandTotal = discountedSubtotal + taxAmount + shippingAmount;
 
     const orderNumber = generateOrderNumber();
-
-    // Update user's phone number if it's not set
-    if (req.user && !req.user.phone && shippingAddress.phone) {
-      await User.findByIdAndUpdate(req.user._id, { phone: shippingAddress.phone });
-    }
 
     // Save Order in database under Pending status
     const order = await Order.create({
       orderNumber,
       customer: req.user?._id,
+      email: email || req.user?.email || "",
       items: verifiedItems,
       shippingAddress,
       billingAddress: billAddress,
+      secondaryEmail: secondaryEmail || "",
       subtotal,
       discountAmount,
       taxAmount,

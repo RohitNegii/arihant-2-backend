@@ -29,6 +29,10 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       return res.status(401).json({ success: false, message: "No user found with this id" });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({ success: false, message: "Your account has been blocked. Please contact support." });
+    }
+
     req.user = user;
     next();
   } catch (error) {

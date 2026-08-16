@@ -51,42 +51,11 @@ export const getOrderDetails = async (req: AuthRequest, res: Response, next: Nex
 // @access  Private/Admin
 export const getAdminOrders = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const query: any = {};
-    if (req.query.status) {
-      query.orderStatus = req.query.status;
-    }
-
-    const orders = await Order.find(query)
+    const orders = await Order.find({})
       .populate("customer", "name email phone")
       .sort({ createdAt: -1 });
 
     return res.json({ success: true, count: orders.length, orders });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Update order timeline status
-// @route   PUT /api/orders/admin/:id/status
-// @access  Private/Admin
-export const updateOrderStatus = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
-  try {
-    const { status, comment } = req.body;
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-
-    order.orderStatus = status;
-    order.statusTimeline.push({
-      status,
-      date: new Date(),
-      comment: comment || `Status updated to ${status}`
-    });
-
-    await order.save();
-    return res.json({ success: true, order });
   } catch (error) {
     next(error);
   }
@@ -105,14 +74,21 @@ export const updateShipping = async (req: Request, res: Response, next: NextFunc
     }
 
     if (trackingUrl !== undefined) {
-      if (trackingUrl !== "") {
+      let formattedUrl = trackingUrl.trim();
+      if (formattedUrl !== "") {
+        if (!formattedUrl.match(/^(https?:\/\/)/i)) {
+          formattedUrl = `https://${formattedUrl}`;
+        }
         try {
-          new URL(trackingUrl);
+          const parsed = new URL(formattedUrl);
+          if (!parsed.hostname.includes(".")) {
+            throw new Error("Invalid domain name");
+          }
         } catch (_) {
           return res.status(400).json({ success: false, message: "Invalid Tracking URL format" });
         }
       }
-      order.trackingUrl = trackingUrl;
+      order.trackingUrl = formattedUrl;
     }
 
     if (trackingNumber !== undefined) order.trackingNumber = trackingNumber;
@@ -128,7 +104,7 @@ export const updateShipping = async (req: Request, res: Response, next: NextFunc
     }
 
     order.statusTimeline.push({
-      status: order.orderStatus,
+      status: "Shipping Update",
       date: new Date(),
       comment: logComment
     });

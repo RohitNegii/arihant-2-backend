@@ -1,7 +1,23 @@
 import { Request, Response, NextFunction } from "express";
 import { Cart } from "../models/Cart";
 import { Product } from "../models/Product";
+import { Setting } from "../models/Setting";
+import { applyDiscountToProduct } from "./products";
 import { AuthRequest } from "../middlewares/auth";
+
+// Helper to serialize cart items with discount price populated
+const serializeCartItems = async (items: any[]) => {
+  const discountSetting = await Setting.findOne({ key: "discount" });
+  const discount = discountSetting?.value || { percentage: 0, enabled: false };
+
+  return items.map((item: any) => {
+    const itemObj = item.toObject ? item.toObject() : item;
+    if (itemObj.product) {
+      itemObj.product = applyDiscountToProduct(itemObj.product, discount);
+    }
+    return itemObj;
+  });
+};
 
 // @desc    Get user cart
 // @route   GET /api/cart
@@ -22,7 +38,9 @@ export const getCart = async (req: AuthRequest, res: Response, next: NextFunctio
       (item: any) => item.product && !item.product.isDeleted && item.product.status === "Published"
     );
 
-    return res.json({ success: true, items: validItems });
+    const itemsWithDiscount = await serializeCartItems(validItems);
+
+    return res.json({ success: true, items: itemsWithDiscount });
   } catch (error) {
     next(error);
   }
@@ -113,7 +131,9 @@ export const addToCart = async (req: AuthRequest, res: Response, next: NextFunct
       select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
-    return res.json({ success: true, items: populatedCart.items });
+    const itemsWithDiscount = await serializeCartItems(populatedCart.items);
+
+    return res.json({ success: true, items: itemsWithDiscount });
   } catch (error) {
     next(error);
   }
@@ -157,7 +177,9 @@ export const updateCartQuantity = async (req: AuthRequest, res: Response, next: 
       select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
-    return res.json({ success: true, items: populatedCart.items });
+    const itemsWithDiscount = await serializeCartItems(populatedCart.items);
+
+    return res.json({ success: true, items: itemsWithDiscount });
   } catch (error) {
     next(error);
   }
@@ -192,7 +214,9 @@ export const removeFromCart = async (req: AuthRequest, res: Response, next: Next
       select: "name price stock images thumbnail slug sku sizes allowCustomSize hasVariants variants"
     });
 
-    return res.json({ success: true, items: populatedCart.items });
+    const itemsWithDiscount = await serializeCartItems(populatedCart.items);
+
+    return res.json({ success: true, items: itemsWithDiscount });
   } catch (error) {
     next(error);
   }

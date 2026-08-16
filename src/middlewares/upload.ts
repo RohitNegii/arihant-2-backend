@@ -10,14 +10,11 @@ export const upload = multer({
   fileFilter: (req, file, cb) => {
     const isImage = file.mimetype.startsWith("image/");
     const isVideo = file.mimetype.startsWith("video/");
-    const isCSV = file.mimetype === "text/csv" || 
-                  file.mimetype === "application/vnd.ms-excel" ||
-                  file.originalname.endsWith(".csv");
 
-    if (isImage || isVideo || isCSV) {
+    if (isImage || isVideo) {
       cb(null, true);
     } else {
-      cb(new Error("Unsupported file format. Please upload only images, videos, or CSV files.") as any, false);
+      cb(new Error("Unsupported file format. Please upload only images or videos.") as any, false);
     }
   }
 });

@@ -33,13 +33,15 @@ export interface IOrder extends Document {
   items: IOrderItem[];
   shippingAddress: IAddressDetails;
   billingAddress: IAddressDetails;
+  email?: string;
+  secondaryEmail?: string;
   subtotal: number;
   discountAmount: number;
   taxAmount: number;
   shippingAmount: number;
   grandTotal: number;
   paymentStatus: "Pending" | "Paid" | "Failed";
-  orderStatus: "Pending" | "Confirmed" | "Processing" | "Packed" | "Shipped" | "Delivered" | "Cancelled" | "Refunded";
+  orderStatus?: string;
   trackingNumber?: string;
   courierName?: string;
   shipmentStatus?: string;
@@ -87,6 +89,8 @@ const OrderSchema = new Schema<IOrder>(
     items: { type: [OrderItemSchema], required: true },
     shippingAddress: { type: AddressDetailsSchema, required: true },
     billingAddress: { type: AddressDetailsSchema, required: true },
+    email: { type: String, default: "" },
+    secondaryEmail: { type: String, default: "" },
     subtotal: { type: Number, required: true },
     discountAmount: { type: Number, default: 0 },
     taxAmount: { type: Number, default: 0 },
