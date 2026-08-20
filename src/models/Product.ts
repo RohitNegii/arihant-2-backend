@@ -13,6 +13,8 @@ export interface IVariant {
   price: number;
   stock: number;
   sku?: string;
+  images?: string[];
+  video?: string;
 }
 
 export interface IProduct extends Document {
@@ -86,7 +88,9 @@ const ProductSchema = new Schema<IProduct>(
           name: { type: String, required: true, trim: true },
           price: { type: Number, required: true, min: 0 },
           stock: { type: Number, required: true, default: 0, min: 0 },
-          sku: { type: String, uppercase: true, trim: true }
+          sku: { type: String, uppercase: true, trim: true },
+          images: { type: [String], default: [] },
+          video: { type: String, default: "" }
         }
       ],
       default: []

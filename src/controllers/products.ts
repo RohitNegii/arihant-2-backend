@@ -338,7 +338,14 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       sizes: sizes || [],
       allowCustomSize: !!allowCustomSize,
       hasVariants: !!hasVariants,
-      variants: variants || []
+      variants: hasVariants && Array.isArray(variants) ? variants.map((v: any) => ({
+        name: v.name,
+        price: v.price,
+        stock: v.stock,
+        sku: v.sku,
+        images: Array.isArray(v.images) ? v.images : [],
+        video: v.video || ""
+      })) : []
     });
 
     return res.status(201).json({ success: true, product });
@@ -387,6 +394,17 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
+    // Collect all old media files for deletion comparison
+    const oldMediaFiles = new Set<string>();
+    if (product.images) product.images.forEach((img) => oldMediaFiles.add(img));
+    if (product.thumbnail) oldMediaFiles.add(product.thumbnail);
+    if (product.variants) {
+      product.variants.forEach((v) => {
+        if (v.images) v.images.forEach((img) => oldMediaFiles.add(img));
+        if (v.video) oldMediaFiles.add(v.video);
+      });
+    }
+
     if (name) {
       product.name = name;
       product.slug = `${slugify(name)}-${(sku || product.sku).toLowerCase()}`;
@@ -416,23 +434,39 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
         product.stock = 0;
       }
     }
-    if (variants !== undefined) product.variants = variants;
+    if (variants !== undefined && Array.isArray(variants)) {
+      product.variants = variants.map((v: any) => ({
+        name: v.name,
+        price: v.price,
+        stock: v.stock,
+        sku: v.sku,
+        images: Array.isArray(v.images) ? v.images : [],
+        video: v.video || ""
+      }));
+    }
 
-    // Handle Image Delete triggers if images lists are updated
     if (images) {
-      // Find deleted images
-      const deletedImages = product.images.filter((img) => !images.includes(img));
-      const deletePromises = deletedImages.map((img) => deleteImageLocal(img));
-      await Promise.all(deletePromises);
       product.images = images;
     }
 
     if (thumbnail) {
-      if (product.thumbnail && product.thumbnail !== thumbnail) {
-        await deleteImageLocal(product.thumbnail);
-      }
       product.thumbnail = thumbnail;
     }
+
+    // Collect all new media files
+    const newMediaFiles = new Set<string>();
+    if (product.images) product.images.forEach((img) => newMediaFiles.add(img));
+    if (product.thumbnail) newMediaFiles.add(product.thumbnail);
+    if (product.variants) {
+      product.variants.forEach((v) => {
+        if (v.images) v.images.forEach((img) => newMediaFiles.add(img));
+        if (v.video) newMediaFiles.add(v.video);
+      });
+    }
+
+    // Delete unused media files
+    const deletedFiles = Array.from(oldMediaFiles).filter((f) => !newMediaFiles.has(f));
+    await Promise.all(deletedFiles.map((f) => deleteImageLocal(f)));
 
     await product.save();
     return res.json({ success: true, product });
