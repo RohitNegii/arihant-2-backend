@@ -21,20 +21,20 @@ const slugify = (text: string) => {
 // Helper to apply global discount to a product object
 export const applyDiscountToProduct = (productObj: any, discount: { percentage: number; enabled: boolean }) => {
   if (!productObj) return productObj;
-  
+
   if (!discount || !discount.enabled || discount.percentage <= 0) {
     // If no discount is active, discountPrice should not be populated
     return productObj;
   }
-  
+
   const discountRate = (100 - discount.percentage) / 100;
-  
+
   if (productObj.hasVariants && productObj.variants) {
     productObj.variants = productObj.variants.map((v: any) => ({
       ...v,
       discountPrice: Math.round(v.price * discountRate)
     }));
-    
+
     // Set product.discountPrice to the minimum variant discountPrice
     if (productObj.variants.length > 0) {
       const discountPrices = productObj.variants.map((v: any) => v.discountPrice).filter((p: any) => p !== undefined);
@@ -45,7 +45,7 @@ export const applyDiscountToProduct = (productObj: any, discount: { percentage: 
   } else if (productObj.price !== undefined && productObj.price !== null) {
     productObj.discountPrice = Math.round(productObj.price * discountRate);
   }
-  
+
   return productObj;
 };
 
@@ -495,8 +495,11 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
       await deleteImageLocal(product.thumbnail);
     }
 
-    // Soft delete
+    // Soft delete & release SKU and slug unique constraints
+    const timestamp = Date.now();
     product.isDeleted = true;
+    product.sku = `${product.sku}-DEL-${timestamp}`;
+    product.slug = `${product.slug}-DEL-${timestamp}`;
     await product.save();
 
     return res.json({ success: true, message: "Product soft deleted successfully" });

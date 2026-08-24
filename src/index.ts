@@ -47,13 +47,13 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-// Rate Limiting (100 requests per 15 minutes per IP)
+// Rate Limiting (100 requests per 5 minutes per IP)
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 100,
   message: {
     success: false,
-    message: "Too many requests from this IP, please try again after 15 minutes."
+    message: "Too many requests from this IP, please try again after 5 minutes."
   },
   standardHeaders: true,
   legacyHeaders: false

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { protect, adminOnly } from "../middlewares/auth";
 import {
   getCategories,
-  getCategoryBySlug,
   createCategory,
   updateCategory,
   deleteCategory
@@ -14,11 +13,6 @@ const router = Router();
 // @route   GET /api/categories
 // @access  Public
 router.get("/", getCategories);
-
-// @desc    Get category by slug
-// @route   GET /api/categories/:slug
-// @access  Public
-router.get("/:slug", getCategoryBySlug);
 
 // @desc    Create category
 // @route   POST /api/categories

@@ -1,11 +1,8 @@
 import { Router } from "express";
 import { protect, adminOnly } from "../middlewares/auth";
 import {
-  register,
   login,
   getMe,
-  forgotPassword,
-  resetPassword,
   changePassword,
   sendOtp,
   verifyOtp,
@@ -25,11 +22,6 @@ router.post("/send-otp", sendOtp);
 // @access  Public
 router.post("/verify-otp", verifyOtp);
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
-// @access  Public
-router.post("/register", register);
-
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
 // @access  Public
@@ -39,16 +31,6 @@ router.post("/login", login);
 // @route   GET /api/auth/me
 // @access  Private
 router.get("/me", protect, getMe);
-
-// @desc    Forgot Password
-// @route   POST /api/auth/forgot-password
-// @access  Public
-router.post("/forgot-password", forgotPassword);
-
-// @desc    Reset Password
-// @route   POST /api/auth/reset-password/:token
-// @access  Public
-router.post("/reset-password/:token", resetPassword);
 
 // @desc    Change Password
 // @route   POST /api/auth/change-password
