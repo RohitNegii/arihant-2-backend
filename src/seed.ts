@@ -10,6 +10,7 @@ import { Cart } from "./models/Cart";
 import { Category } from "./models/Category";
 import { FAQ } from "./models/FAQ";
 import { Product } from "./models/Product";
+import { HomeMedia } from "./models/HomeMedia";
 import { connectDB } from "./config/db";
 
 const seedAdmin = async () => {
@@ -106,6 +107,46 @@ const seedAdmin = async () => {
       if (!existing) {
         await FAQ.create(item);
         console.log(`[Seed] Seeded FAQ: ${item.question}`);
+      }
+    }
+
+    // Seeding homepage media with the photos the storefront currently ships
+    const homeMediaToSeed = [
+      { slot: "wall", url: "/images/royal-peacock-drops.webp", title: "Royal Peacock Drops", alt: "Gold carved peacock earrings with pink kundan petals and pearl clusters" },
+      { slot: "wall", url: "/images/chain-on-table.webp", title: "Atelier Chain Bracelets", alt: "Four gold and silver link bracelets hung over the rim of a coupe glass" },
+      { slot: "wall", url: "/images/ruby-pearl-chandbali.webp", title: "Ruby Pearl Chandbali", alt: "Oxidised silver chandbali earrings with a ruby cluster crest and pearl heart" },
+      { slot: "wall", url: "/images/lapis-bloom-danglers.webp", title: "Lapis Bloom Danglers", alt: "Silver flower studs with lapis lazuli triangle drops guarded by twin parrots" },
+      { slot: "wall", url: "/images/abalone-elephant-danglers.webp", title: "Abalone Elephant Danglers", alt: "Abalone shell lotus earrings carried by golden elephants with pearl tassels" },
+      { slot: "wall", url: "/images/jade-medallion-drops.webp", title: "Jade Medallion Drops", alt: "Round green jade medallion earrings framed by silver blossoms" },
+
+      { slot: "plinth", url: "/images/royal-peacock-drops.webp", title: "Royal Peacock Drops", alt: "Gold carved peacock earrings with pink kundan petals and pearl clusters" },
+      { slot: "plinth", url: "/images/chain-on-table.webp", title: "Atelier Chain Bracelets", alt: "Four gold and silver link bracelets hung over the rim of a coupe glass" },
+      { slot: "plinth", url: "/images/emerald-goddess-drops.webp", title: "Emerald Goddess Drops", alt: "Antique silver goddess earrings crowned with rubies above carved emerald teardrops" },
+      { slot: "plinth", url: "/images/turquoise-chandelier-drops.webp", title: "Turquoise Chandelier Drops", alt: "Oxidised silver chandelier earrings lined with turquoise beads, ruby kundan and pearl tassels" },
+      { slot: "plinth", url: "/images/peacock-hexagon-studs.webp", title: "Peacock Hexagon Studs", alt: "Two-tone hexagonal studs with a golden peacock relief and fluted silver drop" },
+      { slot: "plinth", url: "/images/ruby-pearl-chandbali.webp", title: "Ruby Pearl Chandbali", alt: "Oxidised silver chandbali earrings with a ruby cluster crest and pearl heart" },
+      { slot: "plinth", url: "/images/lapis-bloom-danglers.webp", title: "Lapis Bloom Danglers", alt: "Silver flower studs with lapis lazuli triangle drops guarded by twin parrots" },
+      { slot: "plinth", url: "/images/abalone-elephant-danglers.webp", title: "Abalone Elephant Danglers", alt: "Abalone shell lotus earrings carried by golden elephants with pearl tassels" },
+      { slot: "plinth", url: "/images/jade-medallion-drops.webp", title: "Jade Medallion Drops", alt: "Round green jade medallion earrings framed by silver blossoms" },
+
+      { slot: "moments", url: "/images/ring-with-book.webp", title: "Enamel Elephant Ring", alt: "A gold and oxblood enamel elephant ring standing on a white page beside an open book and dried gypsophila" },
+      { slot: "moments", url: "/images/rings-in-zar.webp", title: "Solitaire and Curb Chain", alt: "A gold solitaire ring inside a glass phial with a heavy curb chain spilling from its mouth, on dark silk" },
+
+      { slot: "finale", url: "/images/emerald-goddess-drops.webp", title: "Emerald Goddess Drops", alt: "Antique silver goddess earrings crowned with rubies above carved emerald teardrops" },
+      { slot: "finale", url: "/images/ring-and-hand.webp", title: "Kundan Cocktail Rings", alt: "A hand wearing two antique gold cocktail rings and a diamond cuff" },
+
+      { slot: "bench", url: "/images/emerald-goddess-drops.webp", title: "Emerald Goddess Drops", alt: "Antique silver goddess earrings crowned with rubies above carved emerald teardrops" }
+    ];
+
+    const orderBySlot: Record<string, number> = {};
+    for (const item of homeMediaToSeed) {
+      const order = orderBySlot[item.slot] ?? 0;
+      orderBySlot[item.slot] = order + 1;
+
+      const existing = await HomeMedia.findOne({ slot: item.slot, url: item.url });
+      if (!existing) {
+        await HomeMedia.create({ ...item, order, isActive: true });
+        console.log(`[Seed] Seeded homepage media: ${item.slot} / ${item.title}`);
       }
     }
 

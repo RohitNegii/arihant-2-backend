@@ -20,6 +20,7 @@ import checkoutRoutes from "./routes/checkout";
 import contactRoutes from "./routes/contact";
 import faqRoutes from "./routes/faqs";
 import settingRoutes from "./routes/settings";
+import homeMediaRoutes from "./routes/homeMedia";
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use("/api/checkout", checkoutRoutes);
 app.use("/api", contactRoutes);
 app.use("/api/faqs", faqRoutes);
 app.use("/api/settings", settingRoutes);
+app.use("/api/home-media", homeMediaRoutes);
 
 // Root route check
 app.get("/health", (req, res) => {

@@ -3,11 +3,15 @@ import path from "path";
 import crypto from "crypto";
 
 /**
- * Saves a file buffer locally under /uploads/products/ directory.
+ * Saves a file buffer locally under /uploads/<folder>/ directory.
  * Returns the relative URL path to be saved in the database.
  */
-export const saveImageLocal = async (fileBuffer: Buffer, originalName: string): Promise<string> => {
-  const uploadsDir = path.join(process.cwd(), "uploads", "products");
+export const saveImageLocal = async (
+  fileBuffer: Buffer,
+  originalName: string,
+  folder: string = "products"
+): Promise<string> => {
+  const uploadsDir = path.join(process.cwd(), "uploads", folder);
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
@@ -18,7 +22,7 @@ export const saveImageLocal = async (fileBuffer: Buffer, originalName: string): 
 
   await fs.promises.writeFile(filePath, fileBuffer);
 
-  return `/uploads/products/${uniqueName}`;
+  return `/uploads/${folder}/${uniqueName}`;
 };
 
 /**
