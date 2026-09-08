@@ -42,14 +42,14 @@ export const HOME_MEDIA_SLOTS: HomeMediaSlot[] = [
   },
   {
     key: "plinth",
-    label: "Plinth Frieze",
+    label: "Collection Lookbook",
     chapterNumber: "03",
     chapter: "Chapter 03 — The Collection",
     placement:
-      "The band of small photographs set into the base of the rotating display plinth at the centre of The Collection room.",
+      "The open jewellery lookbook on the centre counter in The Collection room. Visitors browse two photographs per spread using the page controls.",
     guidance:
-      "Photos are spaced evenly around the drum, so the count decides how wide each one is. Six to ten reads well; past about twelve they get too narrow to make out.",
-    aspect: "Any aspect. Each photo is centre-cropped to fit its segment.",
+      "All active photos are shown in your chosen order. Titles appear beneath each image; alt text describes the pieces for screen readers. An odd final photo gets its own closing spread.",
+    aspect: "Any aspect. The complete photo fits inside the page without cropping or stretching.",
     multiple: true,
     recommended: "6 to 10 photos",
     maxUsed: null
