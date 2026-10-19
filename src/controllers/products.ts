@@ -516,8 +516,13 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
     const { rating, comment } = req.body;
     const productId = req.params.id;
 
-    if (!rating || !comment) {
-      return res.status(400).json({ success: false, message: "Rating and comment are required" });
+    const numRating = Number(rating);
+    if (!rating || isNaN(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ success: false, message: "Rating must be a valid number between 1 and 5" });
+    }
+
+    if (!comment || typeof comment !== "string" || !comment.trim()) {
+      return res.status(400).json({ success: false, message: "Review critique is required" });
     }
 
     const product = await Product.findById(productId);
@@ -533,25 +538,26 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
       return res.status(400).json({ success: false, message: "You have already reviewed this product" });
     }
 
-    // Check if user has purchased the product
-    const hasBought = await Order.findOne({
+    // Check if user has purchased the product in a completed order
+    const completedOrder = await Order.findOne({
       customer: req.user?._id,
-      paymentStatus: "Paid",
+      orderStatus: "Completed",
       "items.product": productId
     });
 
-    if (!hasBought) {
+    if (!completedOrder) {
       return res.status(403).json({
         success: false,
-        message: "You can only review products you have purchased"
+        message: "You can only submit reviews for products from successfully completed orders."
       });
     }
 
     const review = {
       user: req.user?._id as any,
       name: req.user?.name || "Anonymous Patron",
-      rating: Number(rating),
-      comment: String(comment),
+      rating: Math.round(numRating),
+      comment: comment.trim(),
+      order: completedOrder._id as any,
       createdAt: new Date()
     };
 
@@ -588,19 +594,22 @@ export const checkCanReview = async (req: AuthRequest, res: Response, next: Next
       return res.json({ success: true, canReview: false, message: "You have already reviewed this product" });
     }
 
-    // Check if user has purchased the product
-    const hasBought = await Order.findOne({
+    // Check if user has purchased the product in a completed order
+    const completedOrder = await Order.findOne({
       customer: req.user?._id,
-      paymentStatus: "Paid",
+      orderStatus: "Completed",
       "items.product": productId
     });
 
     return res.json({
       success: true,
-      canReview: !!hasBought,
-      message: hasBought ? "You can review this product" : "You must purchase this product to leave a review"
+      canReview: !!completedOrder,
+      message: completedOrder
+        ? "You can review this product"
+        : "You can submit reviews once your order has been successfully marked as Completed."
     });
   } catch (error) {
     next(error);
   }
 };
+
