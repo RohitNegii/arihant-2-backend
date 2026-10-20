@@ -54,8 +54,6 @@ export interface IOrder extends Document {
   trackingNumber?: string;
   courierName?: string;
   shipmentStatus?: string;
-  expectedDelivery?: Date;
-  trackingUrl?: string;
   whatsappMessage?: string;
   whatsappUrl?: string;
   statusTimeline: IStatusTimeline[];
@@ -129,8 +127,6 @@ const OrderSchema = new Schema<IOrder>(
     trackingNumber: { type: String },
     courierName: { type: String },
     shipmentStatus: { type: String },
-    expectedDelivery: { type: Date },
-    trackingUrl: { type: String, default: "" },
     whatsappMessage: { type: String, default: "" },
     whatsappUrl: { type: String, default: "" },
     stockDeducted: { type: Boolean, default: false },

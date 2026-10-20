@@ -216,62 +216,6 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response, next: N
   }
 };
 
-// @desc    Update manual tracking details
-// @route   PUT /api/orders/admin/:id/shipping
-// @access  Private/Admin
-export const updateShipping = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
-  try {
-    const { trackingNumber, courierName, expectedDelivery, shipmentStatus, trackingUrl } = req.body;
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-
-    if (trackingUrl !== undefined) {
-      let formattedUrl = trackingUrl.trim();
-      if (formattedUrl !== "") {
-        if (!formattedUrl.match(/^(https?:\/\/)/i)) {
-          formattedUrl = `https://${formattedUrl}`;
-        }
-        try {
-          const parsed = new URL(formattedUrl);
-          if (!parsed.hostname.includes(".")) {
-            throw new Error("Invalid domain name");
-          }
-        } catch (_) {
-          return res.status(400).json({ success: false, message: "Invalid Tracking URL format" });
-        }
-      }
-      order.trackingUrl = formattedUrl;
-    }
-
-    if (trackingNumber !== undefined) order.trackingNumber = trackingNumber;
-    if (courierName !== undefined) order.courierName = courierName;
-    if (shipmentStatus !== undefined) order.shipmentStatus = shipmentStatus;
-    if (expectedDelivery !== undefined) order.expectedDelivery = expectedDelivery ? new Date(expectedDelivery) : undefined;
-
-    let logComment = "Shipment details updated.";
-    if (trackingUrl !== undefined) {
-      logComment += ` Tracking URL: ${trackingUrl || "Cleared"}.`;
-    } else {
-      logComment += ` Courier: ${courierName || order.courierName || "N/A"}, Tracking: ${trackingNumber || order.trackingNumber || "N/A"}.`;
-    }
-
-    order.statusTimeline.push({
-      status: "Shipping Update",
-      date: new Date(),
-      comment: logComment,
-      updatedBy: req.user?.name || "Admin"
-    });
-
-    await order.save();
-    return res.json({ success: true, order });
-  } catch (error) {
-    next(error);
-  }
-};
-
 // @desc    Get dashboard metrics & sales timeline data
 // @route   GET /api/orders/admin/stats
 // @access  Private/Admin

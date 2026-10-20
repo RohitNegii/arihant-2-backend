@@ -5,7 +5,6 @@ import {
   getOrderDetails,
   getAdminOrders,
   updateOrderStatus,
-  updateShipping,
   getAdminStats
 } from "../controllers/orders";
 
@@ -34,11 +33,6 @@ router.get("/admin/list", protect, adminOnly, getAdminOrders);
 // @route   PUT /api/orders/admin/:id/status
 // @access  Private/Admin
 router.put("/admin/:id/status", protect, adminOnly, updateOrderStatus);
-
-// @desc    Update manual tracking details
-// @route   PUT /api/orders/admin/:id/shipping
-// @access  Private/Admin
-router.put("/admin/:id/shipping", protect, adminOnly, updateShipping);
 
 // @desc    Get dashboard metrics & sales timeline data
 // @route   GET /api/orders/admin/stats
