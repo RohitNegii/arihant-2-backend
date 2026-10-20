@@ -1,7 +1,6 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth";
 import { Cart } from "../models/Cart";
-import { Setting } from "../models/Setting";
 import { Order, IOrderItem } from "../models/Order";
 import { getBusinessWhatsAppNumber } from "./settings";
 
@@ -48,16 +47,8 @@ export const createCheckoutOrder = async (
       return res.status(400).json({ success: false, message: "Your shopping bag is empty" });
     }
 
-    // Fetch global discount settings
-    const discountSetting = await Setting.findOne({ key: "discount" });
-    const discount = discountSetting?.value || { percentage: 0, enabled: false };
-    const discountRate = (discount && discount.enabled && discount.percentage > 0)
-      ? (100 - discount.percentage) / 100
-      : 1;
-
     // Verify products and calculate subtotal
-    let originalSubtotal = 0;
-    let discountedSubtotal = 0;
+    let subtotal = 0;
     const verifiedItems: IOrderItem[] = [];
 
     for (const item of cart.items) {
@@ -97,12 +88,8 @@ export const createCheckoutOrder = async (
         });
       }
 
-      const originalItemTotal = (price || 0) * item.quantity;
-      const purchasePrice = Math.round((price || 0) * discountRate);
-      const discountedItemTotal = purchasePrice * item.quantity;
-
-      originalSubtotal += originalItemTotal;
-      discountedSubtotal += discountedItemTotal;
+      const itemPrice = price || 0;
+      subtotal += itemPrice * item.quantity;
 
       let itemDisplayName = product.name;
       if (selectedVariantName) {
@@ -115,7 +102,7 @@ export const createCheckoutOrder = async (
       verifiedItems.push({
         product: product._id,
         name: itemDisplayName,
-        price: purchasePrice,
+        price: itemPrice,
         quantity: item.quantity,
         image: product.thumbnail || product.images?.[0] || "",
         size: item.size,
@@ -123,11 +110,10 @@ export const createCheckoutOrder = async (
       });
     }
 
-    const subtotal = originalSubtotal;
-    const discountAmount = originalSubtotal - discountedSubtotal;
+    const discountAmount = 0;
     const taxAmount = 0;
     const shippingAmount = 0;
-    const grandTotal = discountedSubtotal + taxAmount + shippingAmount;
+    const grandTotal = subtotal + taxAmount + shippingAmount;
 
     const orderNumber = generateOrderNumber();
 

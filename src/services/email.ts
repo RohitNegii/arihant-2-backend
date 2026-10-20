@@ -245,12 +245,6 @@ export class EmailService {
                   <td class="totals-label">Subtotal:</td>
                   <td class="totals-val">₹${order.subtotal.toLocaleString("en-IN")}</td>
                 </tr>
-                ${order.discountAmount ? `
-                <tr>
-                  <td class="totals-label" style="color: #27ae60;">Discount:</td>
-                  <td class="totals-val" style="color: #27ae60;">- ₹${order.discountAmount.toLocaleString("en-IN")}</td>
-                </tr>
-                ` : ""}
                 ${order.taxAmount ? `
                 <tr>
                   <td class="totals-label">Tax:</td>
