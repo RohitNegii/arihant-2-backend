@@ -5,6 +5,7 @@ export interface IReview {
   name: string;
   rating: number;
   comment: string;
+  order?: Schema.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -53,6 +54,7 @@ const ReviewSchema = new Schema<IReview>({
   name: { type: String, required: true },
   rating: { type: Number, required: true, min: 1, max: 5 },
   comment: { type: String, required: true },
+  order: { type: Schema.Types.ObjectId, ref: "Order" },
   createdAt: { type: Date, default: Date.now }
 });
 

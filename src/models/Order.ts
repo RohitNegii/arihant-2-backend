@@ -25,6 +25,7 @@ export interface IStatusTimeline {
   status: string;
   date: Date;
   comment?: string;
+  updatedBy?: string;
 }
 
 export interface IOrder extends Document {
@@ -41,16 +42,25 @@ export interface IOrder extends Document {
   shippingAmount: number;
   grandTotal: number;
   paymentStatus: "Pending" | "Paid" | "Failed";
-  orderStatus?: string;
+  orderStatus:
+    | "Pending Confirmation"
+    | "Confirmed"
+    | "Processing"
+    | "Shipped"
+    | "Delivered"
+    | "Completed"
+    | "Cancelled"
+    | string;
   trackingNumber?: string;
   courierName?: string;
   shipmentStatus?: string;
-  expectedDelivery?: Date;
-  trackingUrl?: string;
+  whatsappMessage?: string;
+  whatsappUrl?: string;
   statusTimeline: IStatusTimeline[];
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  stockDeducted?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,7 +89,8 @@ const AddressDetailsSchema = new Schema<IAddressDetails>({
 const StatusTimelineSchema = new Schema<IStatusTimeline>({
   status: { type: String, required: true },
   date: { type: Date, default: Date.now },
-  comment: { type: String, default: "" }
+  comment: { type: String, default: "" },
+  updatedBy: { type: String, default: "" }
 });
 
 const OrderSchema = new Schema<IOrder>(
@@ -99,14 +110,26 @@ const OrderSchema = new Schema<IOrder>(
     paymentStatus: { type: String, enum: ["Pending", "Paid", "Failed"], default: "Pending" },
     orderStatus: {
       type: String,
-      enum: ["Pending", "Confirmed", "Processing", "Packed", "Shipped", "Delivered", "Cancelled", "Refunded"],
-      default: "Pending"
+      enum: [
+        "Pending Confirmation",
+        "Confirmed",
+        "Processing",
+        "Shipped",
+        "Delivered",
+        "Completed",
+        "Cancelled",
+        "Pending",
+        "Packed",
+        "Refunded"
+      ],
+      default: "Pending Confirmation"
     },
     trackingNumber: { type: String },
     courierName: { type: String },
     shipmentStatus: { type: String },
-    expectedDelivery: { type: Date },
-    trackingUrl: { type: String, default: "" },
+    whatsappMessage: { type: String, default: "" },
+    whatsappUrl: { type: String, default: "" },
+    stockDeducted: { type: Boolean, default: false },
     statusTimeline: { type: [StatusTimelineSchema], default: [] },
     razorpayOrderId: { type: String, index: true },
     razorpayPaymentId: { type: String },

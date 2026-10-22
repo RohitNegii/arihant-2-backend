@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { Product } from "../models/Product";
-import { Setting } from "../models/Setting";
 import { Category } from "../models/Category";
 import { Order } from "../models/Order";
 import { AuthRequest } from "../middlewares/auth";
@@ -18,34 +17,8 @@ const slugify = (text: string) => {
     .replace(/-+$/, "");
 };
 
-// Helper to apply global discount to a product object
-export const applyDiscountToProduct = (productObj: any, discount: { percentage: number; enabled: boolean }) => {
-  if (!productObj) return productObj;
-
-  if (!discount || !discount.enabled || discount.percentage <= 0) {
-    // If no discount is active, discountPrice should not be populated
-    return productObj;
-  }
-
-  const discountRate = (100 - discount.percentage) / 100;
-
-  if (productObj.hasVariants && productObj.variants) {
-    productObj.variants = productObj.variants.map((v: any) => ({
-      ...v,
-      discountPrice: Math.round(v.price * discountRate)
-    }));
-
-    // Set product.discountPrice to the minimum variant discountPrice
-    if (productObj.variants.length > 0) {
-      const discountPrices = productObj.variants.map((v: any) => v.discountPrice).filter((p: any) => p !== undefined);
-      if (discountPrices.length > 0) {
-        productObj.discountPrice = Math.min(...discountPrices);
-      }
-    }
-  } else if (productObj.price !== undefined && productObj.price !== null) {
-    productObj.discountPrice = Math.round(productObj.price * discountRate);
-  }
-
+// Helper to apply global discount to a product object (No-op as discount is removed)
+export const applyDiscountToProduct = (productObj: any) => {
   return productObj;
 };
 
@@ -137,6 +110,24 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       });
     }
 
+    // Curated Highlight / Marketing Flags Filter
+    if (req.query.highlight) {
+      const h = String(req.query.highlight).toLowerCase().trim();
+      if (h === "featured") query.isFeatured = true;
+      else if (h === "trending") query.isTrending = true;
+      else if (h === "bestseller" || h === "bestselling") query.isBestSeller = true;
+    }
+
+    if (req.query.isFeatured !== undefined && req.query.isFeatured !== "") {
+      query.isFeatured = String(req.query.isFeatured) === "true";
+    }
+    if (req.query.isTrending !== undefined && req.query.isTrending !== "") {
+      query.isTrending = String(req.query.isTrending) === "true";
+    }
+    if (req.query.isBestSeller !== undefined && req.query.isBestSeller !== "") {
+      query.isBestSeller = String(req.query.isBestSeller) === "true";
+    }
+
     // Sorting
     let sortQuery: any = { createdAt: -1 }; // default: latest
     if (req.query.sort) {
@@ -149,6 +140,8 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
         sortQuery = { isBestSeller: -1, createdAt: -1 };
       } else if (sortVal === "featured") {
         sortQuery = { isFeatured: -1, createdAt: -1 };
+      } else if (sortVal === "trending") {
+        sortQuery = { isTrending: -1, createdAt: -1 };
       }
     }
 
@@ -159,16 +152,12 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
       .skip(skip)
       .limit(limit);
 
-    const discountSetting = await Setting.findOne({ key: "discount" });
-    const discount = discountSetting?.value || { percentage: 0, enabled: false };
-    const productsWithDiscount = products.map((p) => applyDiscountToProduct(p.toObject(), discount));
-
     return res.json({
       success: true,
       page,
       pages: Math.ceil(total / limit),
       count: total,
-      products: productsWithDiscount
+      products
     });
   } catch (error) {
     next(error);
@@ -180,8 +169,15 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 // @access  Private/Admin
 export const getAdminProducts = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { search, category, status, stockStatus } = req.query;
+    const { search, category, status, stockStatus, highlight } = req.query;
     const filter: any = { isDeleted: false };
+
+    if (highlight) {
+      const h = String(highlight).toLowerCase().trim();
+      if (h === "featured") filter.isFeatured = true;
+      else if (h === "trending") filter.isTrending = true;
+      else if (h === "bestseller" || h === "bestselling") filter.isBestSeller = true;
+    }
 
     if (search) {
       const searchRegex = new RegExp(String(search), "i");
@@ -243,11 +239,7 @@ export const getProductBySlug = async (req: Request, res: Response, next: NextFu
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    const discountSetting = await Setting.findOne({ key: "discount" });
-    const discount = discountSetting?.value || { percentage: 0, enabled: false };
-    const productWithDiscount = applyDiscountToProduct(product.toObject(), discount);
-
-    return res.json({ success: true, product: productWithDiscount });
+    return res.json({ success: true, product });
   } catch (error) {
     next(error);
   }
@@ -272,11 +264,7 @@ export const getRelatedProducts = async (req: Request, res: Response, next: Next
       .limit(4)
       .populate("category", "name slug");
 
-    const discountSetting = await Setting.findOne({ key: "discount" });
-    const discount = discountSetting?.value || { percentage: 0, enabled: false };
-    const relatedWithDiscount = related.map((p) => applyDiscountToProduct(p.toObject(), discount));
-
-    return res.json({ success: true, products: relatedWithDiscount });
+    return res.json({ success: true, products: related });
   } catch (error) {
     next(error);
   }
@@ -516,8 +504,13 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
     const { rating, comment } = req.body;
     const productId = req.params.id;
 
-    if (!rating || !comment) {
-      return res.status(400).json({ success: false, message: "Rating and comment are required" });
+    const numRating = Number(rating);
+    if (!rating || isNaN(numRating) || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ success: false, message: "Rating must be a valid number between 1 and 5" });
+    }
+
+    if (!comment || typeof comment !== "string" || !comment.trim()) {
+      return res.status(400).json({ success: false, message: "Review critique is required" });
     }
 
     const product = await Product.findById(productId);
@@ -533,25 +526,26 @@ export const addProductReview = async (req: AuthRequest, res: Response, next: Ne
       return res.status(400).json({ success: false, message: "You have already reviewed this product" });
     }
 
-    // Check if user has purchased the product
-    const hasBought = await Order.findOne({
+    // Check if user has purchased the product in a completed order
+    const completedOrder = await Order.findOne({
       customer: req.user?._id,
-      paymentStatus: "Paid",
+      orderStatus: "Completed",
       "items.product": productId
     });
 
-    if (!hasBought) {
+    if (!completedOrder) {
       return res.status(403).json({
         success: false,
-        message: "You can only review products you have purchased"
+        message: "You can only submit reviews for products from successfully completed orders."
       });
     }
 
     const review = {
       user: req.user?._id as any,
       name: req.user?.name || "Anonymous Patron",
-      rating: Number(rating),
-      comment: String(comment),
+      rating: Math.round(numRating),
+      comment: comment.trim(),
+      order: completedOrder._id as any,
       createdAt: new Date()
     };
 
@@ -588,19 +582,22 @@ export const checkCanReview = async (req: AuthRequest, res: Response, next: Next
       return res.json({ success: true, canReview: false, message: "You have already reviewed this product" });
     }
 
-    // Check if user has purchased the product
-    const hasBought = await Order.findOne({
+    // Check if user has purchased the product in a completed order
+    const completedOrder = await Order.findOne({
       customer: req.user?._id,
-      paymentStatus: "Paid",
+      orderStatus: "Completed",
       "items.product": productId
     });
 
     return res.json({
       success: true,
-      canReview: !!hasBought,
-      message: hasBought ? "You can review this product" : "You must purchase this product to leave a review"
+      canReview: !!completedOrder,
+      message: completedOrder
+        ? "You can review this product"
+        : "You can submit reviews once your order has been successfully marked as Completed."
     });
   } catch (error) {
     next(error);
   }
 };
+

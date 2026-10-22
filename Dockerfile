@@ -37,7 +37,7 @@ COPY --from=builder /usr/src/app/dist ./dist
 RUN mkdir -p uploads
 
 # Expose backend port
-EXPOSE 5000
+EXPOSE 5001
 
 # Start backend application
 CMD ["npm", "start"]

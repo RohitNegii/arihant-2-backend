@@ -34,10 +34,69 @@ connectDB();
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(cors({
-  origin: "*", // Adjust as necessary for production (e.g., allow specific domains)
-  credentials: true
-}));
+
+const normalizeOrigin = (url?: string): string => (url ? url.trim().replace(/\/+$/, "") : "");
+
+const allowedOrigins: string[] = [
+  process.env.FRONTEND_URL,
+  process.env.ADMIN_URL,
+  "https://admin.geetejviraasat.com",
+  "https://geetejviraasat.com",
+  "https://www.geetejviraasat.com",
+  "http://admin.geetejviraasat.com",
+  "http://geetejviraasat.com",
+  "http://www.geetejviraasat.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175"
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+// Regex to match any geetejviraasat.com domain or subdomain
+const geetejDomainRegex = /^https?:\/\/([a-zA-Z0-9-]+\.)*geetejviraasat\.com(:\d+)?$/;
+// Regex to match localhost / 127.0.0.1 on any port
+const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (Postman, curl, server-to-server, mobile apps)
+    if (!origin) return callback(null, true);
+
+    const cleanOrigin = normalizeOrigin(origin);
+
+    if (
+      allowedOrigins.includes(cleanOrigin) ||
+      geetejDomainRegex.test(cleanOrigin) ||
+      localhostRegex.test(cleanOrigin) ||
+      process.env.NODE_ENV !== "production"
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers"
+  ],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({
   verify: (req: any, res, buf) => {
     req.rawBody = buf;
@@ -52,6 +111,7 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 100,
+  skip: (req) => req.method === "OPTIONS",
   message: {
     success: false,
     message: "Too many requests from this IP, please try again after 5 minutes."
@@ -81,7 +141,7 @@ app.get("/health", (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
   console.log(`Server running in development mode on port ${PORT}`);
 });

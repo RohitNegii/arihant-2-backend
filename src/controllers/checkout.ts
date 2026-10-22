@@ -1,22 +1,18 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../middlewares/auth";
 import { Cart } from "../models/Cart";
-import { Product } from "../models/Product";
-import { Setting } from "../models/Setting";
 import { Order, IOrderItem } from "../models/Order";
-import { Payment } from "../models/Payment";
-import { User } from "../models/User";
-import { encrypt, decrypt } from "../services/ccavenue";
-import { notificationService } from "../services/notification";
-import { emailService } from "../services/email";
+import { getBusinessWhatsAppNumber } from "./settings";
 
 // Helper to generate unique order numbers
 const generateOrderNumber = () => {
-  return `AUR-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `ORD-${timestamp}-${random}`;
 };
 
 /**
- * @desc    Create a new order & initiate Razorpay payment using Cart data
+ * @desc    Create a new WhatsApp-based order using Cart data
  * @route   POST /api/checkout/create-order
  * @access  Private
  */
@@ -32,6 +28,13 @@ export const createCheckoutOrder = async (
       return res.status(400).json({ success: false, message: "Shipping address is required" });
     }
 
+    if (!shippingAddress.name || !shippingAddress.phone || !shippingAddress.addressLine1 || !shippingAddress.city || !shippingAddress.state || !shippingAddress.postalCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required delivery details (Name, Phone, Address, City, State, PIN Code)."
+      });
+    }
+
     const billAddress = billingAddress || shippingAddress;
 
     // Fetch user's cart from the database
@@ -44,22 +47,14 @@ export const createCheckoutOrder = async (
       return res.status(400).json({ success: false, message: "Your shopping bag is empty" });
     }
 
-    // Fetch global discount settings
-    const discountSetting = await Setting.findOne({ key: "discount" });
-    const discount = discountSetting?.value || { percentage: 0, enabled: false };
-    const discountRate = (discount && discount.enabled && discount.percentage > 0)
-      ? (100 - discount.percentage) / 100
-      : 1;
-
     // Verify products and calculate subtotal
-    let originalSubtotal = 0;
-    let discountedSubtotal = 0;
+    let subtotal = 0;
     const verifiedItems: IOrderItem[] = [];
 
     for (const item of cart.items) {
       const product: any = item.product;
       if (!product || product.isDeleted || product.status !== "Published") {
-        return res.status(404).json({ success: false, message: `Product is no longer available` });
+        return res.status(404).json({ success: false, message: "A product in your cart is no longer available" });
       }
 
       let price = product.price;
@@ -93,34 +88,76 @@ export const createCheckoutOrder = async (
         });
       }
 
-      const originalItemTotal = (price || 0) * item.quantity;
-      const purchasePrice = Math.round((price || 0) * discountRate);
-      const discountedItemTotal = purchasePrice * item.quantity;
+      const itemPrice = price || 0;
+      subtotal += itemPrice * item.quantity;
 
-      originalSubtotal += originalItemTotal;
-      discountedSubtotal += discountedItemTotal;
+      let itemDisplayName = product.name;
+      if (selectedVariantName) {
+        itemDisplayName += ` (${selectedVariantName})`;
+      }
+      if (item.size) {
+        itemDisplayName += ` [Size: ${item.size}]`;
+      }
 
       verifiedItems.push({
         product: product._id,
-        name: selectedVariantName ? `${product.name} (${selectedVariantName})` : product.name,
-        price: purchasePrice, // Purchase price is the discounted price
+        name: itemDisplayName,
+        price: itemPrice,
         quantity: item.quantity,
-        image: product.thumbnail || product.images[0] || "",
+        image: product.thumbnail || product.images?.[0] || "",
         size: item.size,
         variant: selectedVariantName || undefined
       });
     }
 
-    const subtotal = originalSubtotal;
-    const discountAmount = originalSubtotal - discountedSubtotal;
+    const discountAmount = 0;
     const taxAmount = 0;
-    // Shipping is completely free
     const shippingAmount = 0;
-    const grandTotal = discountedSubtotal + taxAmount + shippingAmount;
+    const grandTotal = subtotal + taxAmount + shippingAmount;
 
     const orderNumber = generateOrderNumber();
 
-    // Save Order in database under Pending status
+    // Build human-readable formatted address
+    const addressParts = [
+      shippingAddress.addressLine1,
+      shippingAddress.addressLine2,
+      shippingAddress.city,
+      shippingAddress.state,
+      shippingAddress.postalCode ? `PIN: ${shippingAddress.postalCode}` : "",
+      shippingAddress.country || "India"
+    ].filter(Boolean);
+    const formattedAddress = addressParts.join(", ");
+
+    // Build WhatsApp formatted product list
+    const productLines = verifiedItems.map((item) => {
+      const itemPriceTotal = (item.price * item.quantity).toLocaleString("en-IN");
+      return `- ${item.name} — Quantity: ${item.quantity} — Price: ₹${itemPriceTotal}`;
+    }).join("\n");
+
+    const customerName = shippingAddress.name || req.user?.name || "Valued Patron";
+    const customerPhone = shippingAddress.phone || req.user?.phone || "";
+
+    // Pre-filled WhatsApp message matching required template
+    const prefilledMessage = `Hello, I would like to confirm my order.
+
+Order ID: ${orderNumber}
+
+Products:
+${productLines}
+
+Total Amount: ₹${grandTotal.toLocaleString("en-IN")}
+
+Customer Name: ${customerName}
+Phone: ${customerPhone}
+Delivery Address: ${formattedAddress}
+
+Please confirm my order. Thank you!`;
+
+    // Retrieve configured business WhatsApp number
+    const businessWhatsAppNumber = await getBusinessWhatsAppNumber();
+    const whatsappUrl = `https://wa.me/${businessWhatsAppNumber}?text=${encodeURIComponent(prefilledMessage)}`;
+
+    // Create Order in database under "Pending Confirmation" status
     const order = await Order.create({
       orderNumber,
       customer: req.user?._id,
@@ -135,69 +172,20 @@ export const createCheckoutOrder = async (
       shippingAmount,
       grandTotal,
       paymentStatus: "Pending",
-      orderStatus: "Pending",
-      razorpayOrderId: orderNumber,
+      orderStatus: "Pending Confirmation",
+      whatsappMessage: prefilledMessage,
+      whatsappUrl,
       statusTimeline: [
         {
-          status: "Pending",
+          status: "Pending Confirmation",
           date: new Date(),
-          comment: "Order checkout initiated. Awaiting payment completion."
+          comment: "Order registered via WhatsApp Checkout. Awaiting manual confirmation via WhatsApp."
         }
       ]
     });
 
-    // Create Payment log
-    await Payment.create({
-      order: order._id,
-      paymentOrderId: orderNumber,
-      provider: "ccavenue",
-      amount: grandTotal,
-      currency: "INR",
-      paymentStatus: "Pending"
-    });
-
-    // Prepare CCAvenue parameters
-    const merchantId = process.env.CCAVENUE_MERCHANT_ID || "";
-    const accessCode = process.env.CCAVENUE_ACCESS_CODE || "";
-    const workingKey = process.env.CCAVENUE_WORKING_KEY || "";
-    const gatewayUrl = process.env.CCAVENUE_GATEWAY_URL || "";
-    const redirectUrl = process.env.CCAVENUE_REDIRECT_URL || "";
-
-    const billingName = shippingAddress.name || "";
-    const billingAddrStr = `${shippingAddress.addressLine1} ${shippingAddress.addressLine2 || ""}`.trim();
-    const billingCity = shippingAddress.city || "";
-    const billingState = shippingAddress.state || "";
-    const billingZip = shippingAddress.postalCode || "";
-    const billingCountry = shippingAddress.country || "India";
-    const billingTel = shippingAddress.phone || "";
-    const billingEmail = req.user?.email || "";
-
-    const ccavenueParams = [
-      `merchant_id=${merchantId}`,
-      `order_id=${orderNumber}`,
-      `amount=${grandTotal}`,
-      `currency=INR`,
-      `redirect_url=${encodeURIComponent(redirectUrl)}`,
-      `cancel_url=${encodeURIComponent(redirectUrl)}`,
-      `language=EN`,
-      `billing_name=${encodeURIComponent(billingName)}`,
-      `billing_address=${encodeURIComponent(billingAddrStr)}`,
-      `billing_city=${encodeURIComponent(billingCity)}`,
-      `billing_state=${encodeURIComponent(billingState)}`,
-      `billing_zip=${encodeURIComponent(billingZip)}`,
-      `billing_country=${encodeURIComponent(billingCountry)}`,
-      `billing_tel=${encodeURIComponent(billingTel)}`,
-      `billing_email=${encodeURIComponent(billingEmail)}`,
-      `delivery_name=${encodeURIComponent(billingName)}`,
-      `delivery_address=${encodeURIComponent(billingAddrStr)}`,
-      `delivery_city=${encodeURIComponent(billingCity)}`,
-      `delivery_state=${encodeURIComponent(billingState)}`,
-      `delivery_zip=${encodeURIComponent(billingZip)}`,
-      `delivery_country=${encodeURIComponent(billingCountry)}`,
-      `delivery_tel=${encodeURIComponent(billingTel)}`
-    ].join("&");
-
-    const encRequest = encrypt(ccavenueParams, workingKey);
+    // Empty User's Shopping Bag in database
+    await Cart.findOneAndUpdate({ customer: req.user?._id }, { $set: { items: [] } });
 
     return res.status(201).json({
       success: true,
@@ -206,152 +194,17 @@ export const createCheckoutOrder = async (
         orderNumber: order.orderNumber,
         grandTotal: order.grandTotal,
         subtotal: order.subtotal,
-        taxAmount: order.taxAmount,
-        shippingAmount: order.shippingAmount
+        discountAmount: order.discountAmount,
+        orderStatus: order.orderStatus,
+        items: order.items,
+        shippingAddress: order.shippingAddress,
+        createdAt: order.createdAt
       },
-      ccavenueData: {
-        encRequest,
-        accessCode,
-        paymentUrl: gatewayUrl
-      }
+      whatsappNumber: businessWhatsAppNumber,
+      whatsappUrl,
+      messageText: prefilledMessage
     });
   } catch (error) {
     next(error);
   }
 };
-
-
-/**
- * @desc    Handle CCAvenue POST response callback (Redirect mode)
- * @route   POST /api/checkout/ccavenue-response
- * @access  Public
- */
-export const handleCCAvenueResponse = async (
-  req: any,
-  res: Response,
-  next: NextFunction
-): Promise<any> => {
-  try {
-    const { encResp } = req.body;
-    if (!encResp) {
-      console.error("[CCAvenue Error] Missing encResp in response POST request.");
-      return res.status(400).send("Bad request: Missing response token.");
-    }
-
-    const workingKey = process.env.CCAVENUE_WORKING_KEY || "";
-    const decryptedResp = decrypt(encResp, workingKey);
-
-    // Parse the decrypted response (e.g. order_id=AUR-xxx&order_status=Success...)
-    const params = new URLSearchParams(decryptedResp);
-    const orderNumber = params.get("order_id") || "";
-    const orderStatus = params.get("order_status") || "";
-    const trackingId = params.get("tracking_id") || "";
-    const bankRefNo = params.get("bank_ref_no") || "";
-    const failureMessage = params.get("failure_message") || "";
-
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-
-    console.log(`[CCAvenue Callback] Received order: ${orderNumber}, status: ${orderStatus}`);
-
-    const order = await Order.findOne({ orderNumber });
-    if (!order) {
-      console.warn(`[CCAvenue Error] Order not found for reference: ${orderNumber}`);
-      return res.redirect(`${frontendUrl}/checkout?error=Order+not+found`);
-    }
-
-    const paymentLog = await Payment.findOne({ order: order._id });
-    if (!paymentLog) {
-      console.warn(`[CCAvenue Error] Payment log not found for order: ${order._id}`);
-      return res.redirect(`${frontendUrl}/checkout?error=Payment+log+not+found`);
-    }
-
-    if (orderStatus === "Success") {
-      if (order.paymentStatus !== "Paid") {
-        // Update payment log
-        paymentLog.paymentStatus = "Success";
-        paymentLog.paymentId = trackingId;
-        paymentLog.signature = bankRefNo;
-        paymentLog.rawWebhookPayload = Object.fromEntries(params) as any;
-        await paymentLog.save();
-
-        // Update Order details
-        order.paymentStatus = "Paid";
-        order.orderStatus = "Confirmed";
-        order.razorpayOrderId = orderNumber;
-        order.razorpayPaymentId = trackingId;
-        order.razorpaySignature = bankRefNo;
-        order.statusTimeline.push({
-          status: "Confirmed",
-          date: new Date(),
-          comment: "Payment verified successfully via CCAvenue. Order confirmed."
-        });
-        await order.save();
-
-        // Deduct stock from products/variants
-        for (const item of order.items) {
-          const product = await Product.findById(item.product);
-          if (product) {
-            const selectedVariantName = item.variant;
-            if (product.hasVariants && selectedVariantName) {
-              const variant = product.variants?.find(
-                (v: any) => v.name.toLowerCase() === selectedVariantName.toLowerCase()
-              );
-              if (variant) {
-                variant.stock = Math.max(0, variant.stock - item.quantity);
-                product.markModified("variants");
-              }
-            } else {
-              product.stock = Math.max(0, (product.stock || 0) - item.quantity);
-            }
-            await product.save();
-          }
-        }
-
-        // Empty User's Cart
-        await Cart.findOneAndUpdate({ customer: order.customer }, { $set: { items: [] } });
-
-        // Send WhatsApp and Email confirmations
-        const user = await User.findById(order.customer);
-        if (user) {
-          if (user.phone) {
-            try {
-              await notificationService.sendWhatsAppConfirmation(user.phone, order.orderNumber, order.grandTotal);
-            } catch (err) {
-              // Ignored
-            }
-          }
-          if (user.email) {
-            try {
-              await emailService.sendOrderConfirmation(user.email, order);
-            } catch (err) {
-              console.error(`[Checkout] Failed to send order confirmation email:`, err);
-            }
-          }
-        }
-      }
-
-      return res.redirect(`${frontendUrl}/order-success?orderId=${order._id}`);
-    } else {
-      // payment failed or was aborted
-      paymentLog.paymentStatus = "Failure";
-      paymentLog.rawWebhookPayload = Object.fromEntries(params) as any;
-      await paymentLog.save();
-
-      order.paymentStatus = "Failed";
-      order.orderStatus = "Cancelled";
-      order.statusTimeline.push({
-        status: "Cancelled",
-        date: new Date(),
-        comment: `Payment failed or aborted on CCAvenue. Message: ${failureMessage || orderStatus}`
-      });
-      await order.save();
-
-      const encodedErrMsg = encodeURIComponent(failureMessage || `Payment failed with status ${orderStatus}`);
-      return res.redirect(`${frontendUrl}/checkout?error=${encodedErrMsg}`);
-    }
-  } catch (error) {
-    console.error("CCAvenue Callback Handler Error:", error);
-    next(error);
-  }
-};
-
