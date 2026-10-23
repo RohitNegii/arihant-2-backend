@@ -195,7 +195,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response, next: N
 
     const timelineComment = comment && typeof comment === "string" && comment.trim() !== ""
       ? comment.trim()
-      : `Order status manually updated from '${oldStatus}' to '${status}' by ${adminName}.`;
+      : `Order marked as ${status}`;
 
     order.statusTimeline.push({
       status,
