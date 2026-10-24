@@ -169,7 +169,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 // @access  Private/Admin
 export const getAdminProducts = async (req: Request, res: Response, next: NextFunction): Promise<any> => {
   try {
-    const { search, category, status, stockStatus, highlight } = req.query;
+    const { search, category, status, stockStatus, highlight, page, limit } = req.query;
     const filter: any = { isDeleted: false };
 
     if (highlight) {
@@ -217,11 +217,31 @@ export const getAdminProducts = async (req: Request, res: Response, next: NextFu
       }
     }
 
-    const products = await Product.find(filter)
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = limit ? parseInt(limit as string, 10) : 15;
+    const skip = (pageNum - 1) * limitNum;
+
+    const total = await Product.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
+    let productQuery = Product.find(filter)
       .populate("category", "name slug")
       .sort({ createdAt: -1 });
 
-    return res.json({ success: true, count: products.length, products });
+    if (limit !== "all" && limitNum > 0) {
+      productQuery = productQuery.skip(skip).limit(limitNum);
+    }
+
+    const products = await productQuery;
+
+    return res.json({
+      success: true,
+      count: products.length,
+      total,
+      page: pageNum,
+      totalPages,
+      products
+    });
   } catch (error) {
     next(error);
   }
